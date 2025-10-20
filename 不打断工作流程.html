@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI临床决策支持系统</title>
+    <!-- EmailJS SDK -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f5f7fa; padding: 20px; }
+
+        .main-wrapper { max-width: 1400px; margin: 0 auto; }
+
+        .header { background: white; padding: 20px 30px; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 4px solid #3498db; }
+        .header h1 { color: #2c3e50; font-size: 20px; margin-bottom: 8px; font-weight: 600; }
+        .experiment-tag { display: inline-block; background: #ecf0f1; color: #34495e; padding: 5px 12px; border-radius: 3px; font-size: 12px; font-weight: 500; }
+        .save-status { float: right; font-size: 12px; color: #27ae60; padding: 5px 12px; background: #d4edda; border-radius: 3px; }
+        .save-status.saving { color: #856404; background: #fff3cd; }
+        .save-status.error { color: #721c24; background: #f8d7da; }
+
+        .progress-container { background: white; padding: 20px 30px; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .progress-title { font-size: 14px; font-weight: 600; color: #2c3e50; margin-bottom: 12px; }
+        .progress-bar-container { display: flex; gap: 8px; margin-bottom: 10px; }
+        .progress-bar-item { flex: 1; height: 8px; background: #e0e6ed; border-radius: 4px; }
+        .progress-bar-item.completed { background: #27ae60; }
+        .progress-bar-item.current { background: #3498db; }
+        .progress-text { font-size: 13px; color: #718096; text-align: center; }
+
+        .case-navigation { background: white; padding: 15px 30px; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .case-nav-btn { padding: 10px 20px; border: 2px solid #d1d5db; background: white; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; color: #4a5568; transition: all 0.2s; }
+        .case-nav-btn:hover { border-color: #3498db; color: #3498db; }
+        .case-nav-btn.completed { background: #d4edda; border-color: #27ae60; color: #155724; }
+        .case-nav-btn.current { background: #3498db; border-color: #3498db; color: white; }
+        .case-nav-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+
+        .content-layout { display: flex; gap: 20px; align-items: flex-start; }
+        .main-content { flex: 1; min-width: 0; }
+
+        .ai-sidebar { width: 380px; background: white; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; display: none; }
+        .ai-sidebar.active { display: block; }
+
+        .ai-sidebar-header { padding: 18px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 6px 6px 0 0; position: sticky; top: 0; z-index: 10; }
+        .ai-sidebar-header h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+        .ai-sidebar-subtitle { font-size: 11px; opacity: 0.9; }
+
+        .ai-sidebar-content { padding: 20px; }
+
+        .ai-input-section { border-bottom: 1px solid #e0e6ed; padding-bottom: 20px; margin-bottom: 20px; }
+        .ai-input-section.hidden { display: none; }
+
+        .ai-section { margin-bottom: 25px; }
+        .ai-section.hidden { display: none; }
+
+        .ai-section-title { font-size: 14px; font-weight: 600; color: #2c3e50; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #e0e6ed; display: flex; align-items: center; gap: 8px; }
+        .ai-section-icon { width: 20px; height: 20px; background: #3498db; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
+
+        .ai-suggestion-box { background: #f8f9fa; border-left: 3px solid #3498db; padding: 14px; border-radius: 4px; }
+
+        .ai-diagnosis-list { list-style: none; padding: 0; }
+        .ai-diagnosis-list li { padding: 8px 0; color: #2c3e50; font-size: 14px; border-bottom: 1px dashed #e0e6ed; }
+        .ai-diagnosis-list li:last-child { border-bottom: none; }
+
+        .ai-value { color: #2c3e50; font-size: 15px; font-weight: 600; }
+        .ai-reasoning { margin-top: 12px; padding: 12px; background: #fffbea; border-radius: 4px; font-size: 13px; color: #856404; line-height: 1.6; }
+
+        .ai-status-message { background: #e3f2fd; border-radius: 4px; padding: 15px; text-align: center; color: #1565c0; font-size: 13px; }
+
+        .panel { background: white; border-radius: 6px; padding: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .panel-title { font-size: 16px; font-weight: 600; color: #2c3e50; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e0e6ed; }
+
+        .input-group { margin-bottom: 18px; }
+        .input-group label { display: block; font-weight: 600; color: #4a5568; margin-bottom: 8px; font-size: 13px; }
+        .input-group input[type="text"], .input-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; font-family: inherit; transition: border-color 0.2s; }
+        .input-group input[type="text"]:focus, .input-group textarea:focus { outline: none; border-color: #3498db; }
+        .input-group textarea { resize: vertical; min-height: 75px; }
+
+        .required-mark { color: #e53e3e; margin-left: 2px; }
+        .help-text { font-size: 12px; color: #718096; margin-top: 4px; }
+        .divider { height: 1px; background: #e0e6ed; margin: 25px 0; }
+
+        .radio-group { margin-top: 8px; }
+        .radio-group label { display: block; font-weight: normal; margin-bottom: 6px; cursor: pointer; padding: 9px 12px; border-radius: 4px; transition: background 0.2s; border: 1px solid transparent; }
+        .radio-group label:hover { background: #f7fafc; border-color: #e2e8f0; }
+        .radio-group input { margin-right: 8px; }
+
+        .diagnosis-list { margin-top: 10px; }
+        .diagnosis-item { display: grid; grid-template-columns: 90px 1fr; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .diagnosis-label { font-size: 13px; color: #718096; font-weight: 500; }
+
+        .btn { padding: 11px 24px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #3498db; color: white; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
+        .btn-submit-ai { background: #667eea; color: white; width: 100%; }
+        .btn-submit-ai:hover { background: #5a67d8; }
+
+        .action-buttons { margin-top: 25px; text-align: right; }
+        .action-buttons .btn { margin-left: 10px; }
+
+        .status-indicator { display: inline-block; padding: 5px 12px; border-radius: 3px; font-size: 12px; font-weight: 600; margin-bottom: 15px; }
+        .status-initial { background: #d4edda; color: #155724; }
+        .status-final { background: #cfe2ff; color: #084298; }
+
+        .phase-title { font-size: 14px; font-weight: 600; color: #2c3e50; margin-bottom: 12px; }
+
+        .case-info-display { background: #f8f9fa; padding: 14px; border-radius: 4px; margin-bottom: 18px; border: 1px solid #e0e6ed; }
+        .case-info-row { margin-bottom: 10px; line-height: 1.6; }
+        .case-info-row:last-child { margin-bottom: 0; }
+        .case-info-label { font-weight: 600; color: #4a5568; display: inline-block; min-width: 90px; }
+        .case-info-value { color: #2c3e50; }
+
+        .hidden { display: none; }
+
+        .thank-you-message { background: #d4edda; border: 2px solid #27ae60; border-radius: 6px; padding: 30px; text-align: center; margin-top: 20px; }
+        .thank-you-message h2 { color: #155724; margin-bottom: 15px; }
+        .thank-you-message p { color: #2c3e50; margin-bottom: 20px; }
+
+        .download-btn { background: #95a5a6; color: white; padding: 12px 30px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 10px; }
+        .download-btn:hover { background: #7f8c8d; }
+
+        .error-field { border-color: #e53e3e !important; }
+
+        .time-tracker { background: #fff8e1; border-left: 3px solid #ffa726; padding: 12px; border-radius: 4px; margin-bottom: 15px; font-size: 12px; color: #e65100; }
+        .time-tracker strong { color: #bf360c; }
+
+        @media (max-width: 1200px) {
+            .content-layout { flex-direction: column; }
+            .ai-sidebar { width: 100%; position: relative; top: 0; max-height: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <div class="header">
+            <span class="save-status" id="saveStatus">已保存</span>
+            <h1>AI临床决策支持系统 - 呼吸道感染诊疗</h1>
+            <div class="experiment-tag">实验编号：Run 1</div>
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-title">实验进度</div>
+            <div class="progress-bar-container" id="progressBar"></div>
+            <div class="progress-text" id="progressText">案例 0/5 已完成</div>
+        </div>
+
+        <div class="case-navigation" id="caseNavigation"></div>
+
+        <div class="content-layout">
+            <div class="main-content">
+                <div id="caseContentArea">
+                    <div class="panel">
+                        <div class="panel-title">患者病历信息</div>
+                        <div id="caseInfoDisplay"></div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-title">诊疗决策</div>
+                        <div id="initialDecisionSection">
+                            <div class="status-indicator status-initial">阶段1：初步诊断（未看AI建议）</div>
+                            <div class="input-group">
+                                <label>诊断（按可能性从大到小排列）<span class="required-mark">*</span></label>
+                                <div class="help-text">请列出最可能的三个诊断</div>
+                                <div class="diagnosis-list">
+                                    <div class="diagnosis-item"><span class="diagnosis-label">最可能：</span><input type="text" id="initialDiag1" placeholder="第一诊断"></div>
+                                    <div class="diagnosis-item"><span class="diagnosis-label">次可能：</span><input type="text" id="initialDiag2" placeholder="第二诊断"></div>
+                                    <div class="diagnosis-item"><span class="diagnosis-label">第三可能：</span><input type="text" id="initialDiag3" placeholder="第三诊断"></div>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>是否使用抗生素<span class="required-mark">*</span></label>
+                                <div class="radio-group">
+                                    <label><input type="radio" name="initialAntibiotic" value="no">否，不使用抗生素</label>
+                                    <label><input type="radio" name="initialAntibiotic" value="yes">是，需要使用抗生素</label>
+                                </div>
+                            </div>
+                            <div class="input-group hidden" id="initialAntibioticTypes">
+                                <label>请填写抗生素种类<span class="required-mark">*</span></label>
+                                <div class="help-text">可填写多种，用顿号或逗号分隔</div>
+                                <input type="text" id="initialAntibioticInput" placeholder="例如：阿莫西林、头孢氨苄">
+                            </div>
+                            <div class="action-buttons">
+                                <button class="btn btn-primary" onclick="submitInitialDecision()">提交初步诊断并查看AI建议</button>
+                            </div>
+                        </div>
+
+                        <div id="finalDecisionSection" class="hidden">
+                            <div class="status-indicator status-final">阶段2：最终决策（已查看AI建议）</div>
+                            <div class="phase-title">您的初步诊断</div>
+                            <div class="case-info-display" id="initialDecisionDisplay"></div>
+                            <div class="divider"></div>
+                            <div class="phase-title">请做出最终诊疗决策</div>
+                            <div class="input-group">
+                                <label>诊断（按可能性从大到小排列）<span class="required-mark">*</span></label>
+                                <div class="help-text">请列出最可能的三个诊断</div>
+                                <div class="diagnosis-list">
+                                    <div class="diagnosis-item"><span class="diagnosis-label">最可能：</span><input type="text" id="finalDiag1" placeholder="第一诊断"></div>
+                                    <div class="diagnosis-item"><span class="diagnosis-label">次可能：</span><input type="text" id="finalDiag2" placeholder="第二诊断"></div>
+                                    <div class="diagnosis-item"><span class="diagnosis-label">第三可能：</span><input type="text" id="finalDiag3" placeholder="第三诊断"></div>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>是否使用抗生素<span class="required-mark">*</span></label>
+                                <div class="radio-group">
+                                    <label><input type="radio" name="finalAntibiotic" value="no">否，不使用抗生素</label>
+                                    <label><input type="radio" name="finalAntibiotic" value="yes">是，需要使用抗生素</label>
+                                </div>
+                            </div>
+                            <div class="input-group hidden" id="finalAntibioticTypes">
+                                <label>请填写抗生素种类<span class="required-mark">*</span></label>
+                                <div class="help-text">可填写多种，用顿号或逗号分隔</div>
+                                <input type="text" id="finalAntibioticInput" placeholder="例如：阿莫西林、头孢氨苄">
+                            </div>
+                            <div class="input-group">
+                                <label>决策确定性 <span class="required-mark">*</span></label>
+                                <div class="radio-group">
+                                    <label><input type="radio" name="certainty" value="1"> 1 - 非常不确定</label>
+                                    <label><input type="radio" name="certainty" value="2"> 2 - 不确定</label>
+                                    <label><input type="radio" name="certainty" value="3"> 3 - 一般</label>
+                                    <label><input type="radio" name="certainty" value="4"> 4 - 确定</label>
+                                    <label><input type="radio" name="certainty" value="5"> 5 - 非常确定</label>
+                                </div>
+                            </div>
+                            <div class="action-buttons">
+                                <button class="btn btn-success" onclick="submitFinalDecision()">提交最终决策</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="completionArea" class="hidden">
+                    <div class="thank-you-message">
+                        <h2>✓ 实验已完成</h2>
+                        <p>感谢您的参与！所有5个案例已完成，数据已通过邮件发送。</p>
+                        <p style="font-size: 13px; color: #718096; margin-top: 20px;">
+                            参与者ID：<span id="completedParticipantId" style="font-weight: 600; color: #2c3e50;"></span>
+                        </p>
+                        <p style="font-size: 12px; color: #95a5a6; margin-top: 10px;">
+                            您也可以下载本地备份
+                        </p>
+                        <button class="download-btn" onclick="downloadData()">下载数据备份</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ai-sidebar" id="aiSidebar">
+                <div class="ai-sidebar-header">
+                    <h3>AI辅助诊疗系统</h3>
+                    <div class="ai-sidebar-subtitle">请先向AI输入病历信息</div>
+                </div>
+                <div class="ai-sidebar-content">
+                    <div class="ai-input-section" id="aiInputSection">
+                        <div class="input-group">
+                            <label>病历信息输入 <span class="required-mark">*</span></label>
+                            <div class="help-text">复制所有病历信息并粘贴到下方，或手动输入</div>
+                            <textarea id="aiInputMedicalRecord" placeholder="请输入完整的病历信息..." style="min-height: 200px;"></textarea>
+                        </div>
+                        <button class="btn btn-submit-ai" onclick="submitToAI()">提交给AI分析</button>
+                    </div>
+
+                    <div class="ai-section hidden" id="aiDiagnosisSection">
+                        <div class="ai-section-title">
+                            <div class="ai-section-icon">1</div>
+                            AI诊断建议
+                        </div>
+                        <div class="ai-suggestion-box" id="diagnosisContent"></div>
+                    </div>
+
+                    <div class="ai-section hidden" id="aiTreatmentSection">
+                        <div class="ai-section-title">
+                            <div class="ai-section-icon">2</div>
+                            AI用药建议
+                        </div>
+                        <div class="ai-suggestion-box" id="treatmentContent"></div>
+                    </div>
+
+                    <div class="ai-status-message hidden" id="aiWaitingMessage">
+                        请先完成初步诊断，然后输入病历信息以获取AI建议
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== EmailJS配置 =====
+        const EMAILJS_CONFIG = {
+            serviceId: 'service_sjev6dm',
+            templateId: 'template_ldiu064',
+            publicKey: 'GbpZKeaCKEnzJeoAo'
+        };
+
+        // 初始化EmailJS
+        (function() {
+            emailjs.init(EMAILJS_CONFIG.publicKey);
+        })();
+
+        // ===== 数据保存函数（EmailJS版本）=====
+        async function saveData(data, isFinal = false) {
+            const statusEl = document.getElementById('saveStatus');
+
+            try {
+                // 保存到localStorage作为备份
+                localStorage.setItem('expData_' + data.participantId, JSON.stringify(data));
+
+                if (isFinal) {
+                    // 只在最终提交时发送邮件
+                    statusEl.textContent = '发送中...';
+                    statusEl.className = 'save-status saving';
+
+                    // 准备邮件数据
+                    const emailData = {
+                        participant_id: data.participantId,
+                        start_time: data.startTime,
+                        end_time: data.endTime || new Date().toISOString(),
+                        run_config: data.runConfig,
+                        // 完整数据（JSON格式）
+                        full_data: JSON.stringify(data, null, 2)
+                    };
+
+                    // 发送邮件
+                    const response = await emailjs.send(
+                        EMAILJS_CONFIG.serviceId,
+                        EMAILJS_CONFIG.templateId,
+                        emailData
+                    );
+
+                    if (response.status === 200) {
+                        statusEl.textContent = '✓ 数据已发送';
+                        statusEl.className = 'save-status';
+                        console.log('✓ 数据已成功通过EmailJS发送');
+                    } else {
+                        throw new Error('EmailJS返回错误');
+                    }
+                } else {
+                    // 非最终提交时只保存到本地
+                    statusEl.textContent = '已保存';
+                    statusEl.className = 'save-status';
+                }
+
+                return true;
+
+            } catch (error) {
+                console.error('发送失败:', error);
+                statusEl.textContent = '已保存到浏览器';
+                statusEl.className = 'save-status';
+                console.log('⚠️ 数据已保存到浏览器本地，但未能发送邮件');
+
+                // 即使发送失败，也返回true以便继续流程
+                return true;
+            }
+        }
+
+        // ===== 时间计算辅助函数 =====
+        function calculateDuration(startTime, endTime) {
+            if (!startTime || !endTime) return null;
+            const start = new Date(startTime);
+            const end = new Date(endTime);
+            const diffMs = end - start;
+            const diffSeconds = Math.round(diffMs / 1000);
+            return diffSeconds;
+        }
+
+        function formatDuration(seconds) {
+            if (seconds === null || seconds === undefined) return 'N/A';
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            if (mins > 0) {
+                return `${mins}分${secs}秒`;
+            }
+            return `${secs}秒`;
+        }
+
+        // ===== 案例数据 =====
+        const cases = [
+            {
+                id: 1, name: '案例1', patientId: 'RTI-2025-001', gender: '男', age: '45岁', visitDate: '2025-10-16',
+                chiefComplaint: '咳嗽、咳痰3天，伴发热',
+                presentIllness: '患者3天前无明显诱因出现咳嗽，初为干咳，后转为咳痰，痰液为白色粘痰，不易咳出。伴有发热，体温最高38.5℃，无畏寒寒战。无胸痛、气促、咯血。无鼻塞、流涕、咽痛。病程中精神、食欲欠佳，睡眠可，大小便正常。',
+                personalHistory: '既往体健，无慢性病史。无吸烟史，偶尔饮酒。职业：办公室职员。',
+                allergyHistory: '否认药物过敏史',
+                physicalExam: '体温38.2℃，脉搏92次/分，呼吸20次/分，血压120/80mmHg。神志清楚，精神欠佳。咽部轻度充血，扁桃体无肿大。双肺呼吸音粗，可闻及散在干啰音，未闻及湿啰音。心律齐，心音有力，各瓣膜听诊区未闻及杂音。腹软，无压痛，肝脾未触及。',
+                labTests: '血常规：WBC 9.2×10^9/L，N 65%，L 28%；CRP 15mg/L；胸部X线：双肺纹理增粗，未见明显实变影。',
+                aiRecommendation: {
+                    diagnosis: ['急性支气管炎', '上呼吸道感染', '社区获得性肺炎'],
+                    useAntibiotic: false, antibioticType: null
+                }
+            },
+            {
+                id: 2, name: '案例2', patientId: 'RTI-2025-002', gender: '女', age: '32岁', visitDate: '2025-10-17',
+                chiefComplaint: '鼻塞、流涕、打喷嚏2天',
+                presentIllness: '患者2天前受凉后出现鼻塞、流清水样鼻涕、打喷嚏，伴轻度咽部不适。无发热、咳嗽、咳痰。无头痛、肌肉酸痛。精神食欲可，睡眠稍差（因鼻塞）。',
+                personalHistory: '既往体健。无吸烟饮酒史。职业：教师。',
+                allergyHistory: '青霉素过敏',
+                physicalExam: '体温36.8℃，脉搏78次/分，呼吸18次/分，血压110/70mmHg。神志清楚，精神可。鼻粘膜充血水肿，有清涕。咽部轻度充血，扁桃体无肿大。双肺呼吸音清，未闻及干湿啰音。心律齐，未闻及杂音。',
+                labTests: '未做特殊检查。',
+                aiRecommendation: {
+                    diagnosis: ['急性上呼吸道感染（普通感冒）', '过敏性鼻炎', '急性鼻炎'],
+                    useAntibiotic: false, antibioticType: null
+                }
+            },
+            {
+                id: 3, name: '案例3', patientId: 'RTI-2025-003', gender: '男', age: '28岁', visitDate: '2025-10-18',
+                chiefComplaint: '咽痛3天，伴发热',
+                presentIllness: '患者3天前出现咽痛，吞咽时加重，伴发热，体温最高39.0℃。无咳嗽、咳痰。无鼻塞、流涕。病程中乏力明显，食欲差。',
+                personalHistory: '既往体健。吸烟史5年，每天约10支。偶尔饮酒。',
+                allergyHistory: '否认药物过敏史',
+                physicalExam: '体温38.8℃，脉搏96次/分，呼吸18次/分，血压125/85mmHg。神志清楚，精神差。咽部明显充血，扁桃体Ⅱ度肿大，表面可见脓性分泌物。颈部可触及肿大淋巴结，有压痛。双肺呼吸音清，未闻及干湿啰音。',
+                labTests: '血常规：WBC 13.5×10^9/L，N 82%，L 15%；CRP 45mg/L。咽拭子快速链球菌抗原检测：阳性。',
+                aiRecommendation: {
+                    diagnosis: ['急性化脓性扁桃体炎', '急性咽炎', 'A组链球菌咽炎'],
+                    useAntibiotic: true, antibioticType: '阿莫西林或头孢氨苄'
+                }
+            },
+            {
+                id: 4, name: '案例4', patientId: 'RTI-2025-004', gender: '女', age: '55岁', visitDate: '2025-10-19',
+                chiefComplaint: '发热、全身酸痛2天',
+                presentIllness: '患者2天前突然起病，出现发热，体温最高39.5℃，伴畏寒、全身肌肉酸痛、头痛、乏力明显。有轻度干咳，无咳痰。无鼻塞、流涕、咽痛。食欲明显减退。',
+                personalHistory: '有高血压病史5年，规律服药控制良好。无吸烟饮酒史。职业：会计。',
+                allergyHistory: '否认药物过敏史',
+                physicalExam: '体温39.2℃，脉搏102次/分，呼吸22次/分，血压135/85mmHg。神志清楚，精神萎靡。咽部轻度充血。双肺呼吸音粗，未闻及干湿啰音。心律齐。腹软。',
+                labTests: '血常规：WBC 4.8×10^9/L，N 55%，L 38%；CRP 8mg/L。流感病毒抗原快速检测：甲型流感阳性。',
+                aiRecommendation: {
+                    diagnosis: ['流行性感冒（甲型）', '上呼吸道感染', '急性支气管炎'],
+                    useAntibiotic: false, antibioticType: null
+                }
+            },
+            {
+                id: 5, name: '案例5', patientId: 'RTI-2025-005', gender: '男', age: '68岁', visitDate: '2025-10-20',
+                chiefComplaint: '咳嗽、咳痰、气促4天，伴发热',
+                presentIllness: '患者4天前受凉后出现咳嗽、咳黄脓痰，不易咳出，伴发热，体温最高38.8℃。2天前出现活动后气促。伴胸痛（深吸气时加重）。无咯血。病程中乏力明显，食欲差。',
+                personalHistory: '有慢性阻塞性肺疾病（COPD）病史10年，吸烟史30年（已戒烟5年）。',
+                allergyHistory: '否认药物过敏史',
+                physicalExam: '体温38.5℃，脉搏98次/分，呼吸24次/分，血压130/80mmHg，血氧饱和度92%（吸空气）。神志清楚，精神差。口唇轻度发绀。右下肺叩诊浊音，呼吸音减弱，可闻及湿啰音。',
+                labTests: '血常规：WBC 15.2×10^9/L，N 85%，L 10%；CRP 68mg/L；降钙素原0.8ng/mL。胸部X线：右下肺可见片状高密度影，边界模糊。',
+                aiRecommendation: {
+                    diagnosis: ['社区获得性肺炎', '慢性阻塞性肺疾病急性加重', '急性支气管炎'],
+                    useAntibiotic: true, antibioticType: '左氧氟沙星或头孢曲松'
+                }
+            }
+        ];
+
+        const expData = {
+            participantId: 'P' + Date.now().toString().slice(-6),
+            startTime: new Date().toISOString(),
+            runConfig: 'Run 1',
+            cases: [],
+            endTime: null
+        };
+
+        let curCase = 0, completedCases = 0;
+
+        function init() {
+            const pb = document.getElementById('progressBar');
+            for (let i = 0; i < 5; i++) {
+                const item = document.createElement('div');
+                item.className = 'progress-bar-item';
+                item.id = `progress-${i}`;
+                pb.appendChild(item);
+            }
+
+            const nav = document.getElementById('caseNavigation');
+            cases.forEach((c, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'case-nav-btn';
+                btn.id = `nav-btn-${i}`;
+                btn.textContent = c.name;
+                btn.onclick = () => switchCase(i);
+                if (i !== 0) btn.disabled = true;
+                nav.appendChild(btn);
+            });
+
+            updateProgress();
+            loadCase(0);
+            saveData(expData);
+        }
+
+        function updateProgress() {
+            document.getElementById('progressText').textContent = `案例 ${completedCases}/5 已完成`;
+            for (let i = 0; i < 5; i++) {
+                const item = document.getElementById(`progress-${i}`);
+                item.className = 'progress-bar-item';
+                if (i < completedCases) item.classList.add('completed');
+                else if (i === curCase) item.classList.add('current');
+            }
+
+            cases.forEach((c, i) => {
+                const btn = document.getElementById(`nav-btn-${i}`);
+                btn.className = 'case-nav-btn';
+                const cd = expData.cases.find(x => x.caseId === c.id);
+                if (cd && cd.finalDecision) {
+                    btn.classList.add('completed');
+                    btn.disabled = false;
+                } else if (i === curCase) {
+                    btn.classList.add('current');
+                    btn.disabled = false;
+                } else if (i < curCase || (cd && cd.initialDecision)) {
+                    btn.disabled = false;
+                }
+            });
+        }
+
+        function switchCase(i) {
+            if (i < 0 || i >= cases.length) return;
+
+            // 隐藏AI侧边栏
+            document.getElementById('aiSidebar').classList.remove('active');
+            // 重置AI输入
+            document.getElementById('aiInputMedicalRecord').value = '';
+
+            curCase = i;
+            loadCase(i);
+            updateProgress();
+        }
+
+        function loadCase(i) {
+            const c = cases[i];
+
+            // 初始化案例数据（如果不存在）
+            let cd = expData.cases.find(x => x.caseId === c.id);
+            if (!cd) {
+                cd = {
+                    caseId: c.id,
+                    caseName: c.name,
+                    patientId: c.patientId,
+                    timestamps: {},
+                    durations: {}
+                };
+                expData.cases.push(cd);
+            }
+
+            // 记录案例开始查看时间（如果是第一次查看）
+            if (!cd.timestamps.caseStart) {
+                cd.timestamps.caseStart = new Date().toISOString();
+                saveData(expData);
+            }
+
+            document.getElementById('caseInfoDisplay').innerHTML = `
+                <div class="input-group"><label>患者ID</label><input type="text" value="${c.patientId}" readonly style="background: #f8f9fa;"></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 18px;">
+                    <div><label style="display: block; font-weight: 600; color: #4a5568; margin-bottom: 8px; font-size: 13px;">性别</label><input type="text" value="${c.gender}" readonly style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; background: #f8f9fa;"></div>
+                    <div><label style="display: block; font-weight: 600; color: #4a5568; margin-bottom: 8px; font-size: 13px;">年龄</label><input type="text" value="${c.age}" readonly style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; background: #f8f9fa;"></div>
+                    <div><label style="display: block; font-weight: 600; color: #4a5568; margin-bottom: 8px; font-size: 13px;">就诊日期</label><input type="text" value="${c.visitDate}" readonly style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; background: #f8f9fa;"></div>
+                </div>
+                <div class="input-group"><label>主诉</label><input type="text" value="${c.chiefComplaint}" readonly style="background: #f8f9fa;"></div>
+                <div class="input-group"><label>现病史</label><textarea readonly style="background: #f8f9fa; min-height: 90px;">${c.presentIllness}</textarea></div>
+                <div class="input-group"><label>个人史</label><textarea readonly style="background: #f8f9fa; min-height: 50px;">${c.personalHistory}</textarea></div>
+                <div class="input-group"><label>药物过敏史</label><input type="text" value="${c.allergyHistory}" readonly style="background: #f8f9fa;"></div>
+                <div class="input-group"><label>体格检查</label><textarea readonly style="background: #f8f9fa; min-height: 90px;">${c.physicalExam}</textarea></div>
+                <div class="input-group"><label>辅助检查</label><textarea readonly style="background: #f8f9fa; min-height: 60px;">${c.labTests}</textarea></div>
+            `;
+
+            if (cd && cd.finalDecision) {
+                document.getElementById('initialDecisionSection').classList.add('hidden');
+                document.getElementById('finalDecisionSection').classList.add('hidden');
+            } else if (cd && cd.initialDecision) {
+                showFinalSection(cd);
+            } else {
+                resetInitial();
+                document.getElementById('initialDecisionSection').classList.remove('hidden');
+                document.getElementById('finalDecisionSection').classList.add('hidden');
+            }
+        }
+
+        function resetInitial() {
+            document.getElementById('initialDiag1').value = '';
+            document.getElementById('initialDiag2').value = '';
+            document.getElementById('initialDiag3').value = '';
+            document.querySelectorAll('input[name="initialAntibiotic"]').forEach(r => r.checked = false);
+            document.getElementById('initialAntibioticTypes').classList.add('hidden');
+            document.getElementById('initialAntibioticInput').value = '';
+        }
+
+        document.querySelectorAll('input[name="initialAntibiotic"]').forEach(r => {
+            r.addEventListener('change', function() {
+                document.getElementById('initialAntibioticTypes').classList.toggle('hidden', this.value !== 'yes');
+            });
+        });
+
+        document.querySelectorAll('input[name="finalAntibiotic"]').forEach(r => {
+            r.addEventListener('change', function() {
+                document.getElementById('finalAntibioticTypes').classList.toggle('hidden', this.value !== 'yes');
+            });
+        });
+
+        function clearErrorHighlight(element) {
+            element.classList.remove('error-field');
+        }
+
+        function submitInitialDecision() {
+            const c = cases[curCase];
+            const d1 = document.getElementById('initialDiag1');
+            const d2 = document.getElementById('initialDiag2');
+            const d3 = document.getElementById('initialDiag3');
+            const ab = document.querySelector('input[name="initialAntibiotic"]:checked');
+            const absInput = document.getElementById('initialAntibioticInput');
+
+            // 清除之前的错误高亮
+            [d1, d2, d3, absInput].forEach(el => clearErrorHighlight(el));
+
+            // 验证诊断
+            if (!d1.value.trim()) {
+                d1.classList.add('error-field');
+                alert('请填写第一诊断');
+                d1.focus();
+                return;
+            }
+            if (!d2.value.trim()) {
+                d2.classList.add('error-field');
+                alert('请填写第二诊断');
+                d2.focus();
+                return;
+            }
+            if (!d3.value.trim()) {
+                d3.classList.add('error-field');
+                alert('请填写第三诊断');
+                d3.focus();
+                return;
+            }
+
+            // 验证抗生素选择
+            if (!ab) {
+                alert('请选择是否使用抗生素');
+                return;
+            }
+
+            const useAb = ab.value === 'yes';
+            let abs = '';
+
+            // 如果选择使用抗生素，必须填写抗生素种类
+            if (useAb) {
+                abs = absInput.value.trim();
+                if (!abs) {
+                    absInput.classList.add('error-field');
+                    alert('请填写抗生素种类');
+                    absInput.focus();
+                    return;
+                }
+            }
+
+            let cd = expData.cases.find(x => x.caseId === c.id);
+            if (!cd) {
+                cd = {
+                    caseId: c.id,
+                    caseName: c.name,
+                    patientId: c.patientId,
+                    timestamps: {},
+                    durations: {}
+                };
+                expData.cases.push(cd);
+            }
+
+            cd.initialDecision = {
+                diagnosis: [d1.value.trim(), d2.value.trim(), d3.value.trim()],
+                useAntibiotic: useAb,
+                antibiotics: abs
+            };
+            cd.timestamps.initialSubmit = new Date().toISOString();
+
+            // 计算初步诊断耗时（从案例开始到提交初步诊断）
+            cd.durations.initialDecisionTime = calculateDuration(
+                cd.timestamps.caseStart,
+                cd.timestamps.initialSubmit
+            );
+
+            saveData(expData);
+
+            // 显示AI侧边栏
+            showAISidebar();
+        }
+
+        function showAISidebar() {
+            const sidebar = document.getElementById('aiSidebar');
+            sidebar.classList.add('active');
+
+            // 显示输入区域，隐藏建议区域
+            document.getElementById('aiInputSection').classList.remove('hidden');
+            document.getElementById('aiDiagnosisSection').classList.add('hidden');
+            document.getElementById('aiTreatmentSection').classList.add('hidden');
+            document.getElementById('aiWaitingMessage').classList.add('hidden');
+        }
+
+        function submitToAI() {
+            const input = document.getElementById('aiInputMedicalRecord');
+
+            // 清除之前的错误高亮
+            clearErrorHighlight(input);
+
+            if (!input.value.trim()) {
+                input.classList.add('error-field');
+                alert('请输入病历信息');
+                input.focus();
+                return;
+            }
+
+            const c = cases[curCase];
+            const cd = expData.cases.find(x => x.caseId === c.id);
+            cd.aiInputInfo = { medicalRecord: input.value.trim() };
+            cd.timestamps.aiInput = new Date().toISOString();
+
+            // 计算从初步诊断提交到AI输入的时间
+            cd.durations.timeToAIInput = calculateDuration(
+                cd.timestamps.initialSubmit,
+                cd.timestamps.aiInput
+            );
+
+            saveData(expData);
+
+            // 隐藏输入区域，显示AI建议
+            document.getElementById('aiInputSection').classList.add('hidden');
+
+            // 显示诊断建议
+            document.getElementById('diagnosisContent').innerHTML = `
+                <ul class="ai-diagnosis-list">
+                    ${c.aiRecommendation.diagnosis.map((d, i) => `<li>${i+1}. ${d}</li>`).join('')}
+                </ul>
+            `;
+            document.getElementById('aiDiagnosisSection').classList.remove('hidden');
+
+            // 显示用药建议
+            let treatmentHtml = `
+                <div style="margin-bottom: 12px;">
+                    <strong>是否使用抗生素：</strong>
+                    <span class="ai-value">${c.aiRecommendation.useAntibiotic ? '建议使用' : '不建议使用'}</span>
+                </div>
+            `;
+            if (c.aiRecommendation.useAntibiotic && c.aiRecommendation.antibioticType) {
+                treatmentHtml += `
+                    <div style="margin-bottom: 12px;">
+                        <strong>推荐抗生素：</strong>
+                        <span class="ai-value">${c.aiRecommendation.antibioticType}</span>
+                    </div>
+                `;
+            }
+            if (c.aiRecommendation.reasoning) {
+                treatmentHtml += `
+                    <div class="ai-reasoning">
+                        <strong>建议理由：</strong><br>
+                        ${c.aiRecommendation.reasoning}
+                    </div>
+                `;
+            }
+            document.getElementById('treatmentContent').innerHTML = treatmentHtml;
+            document.getElementById('aiTreatmentSection').classList.remove('hidden');
+
+            // 记录查看AI建议的时间
+            cd.timestamps.aiViewed = new Date().toISOString();
+
+            // 计算从AI输入到查看建议的时间（通常很短，因为是模拟AI）
+            cd.durations.aiProcessingTime = calculateDuration(
+                cd.timestamps.aiInput,
+                cd.timestamps.aiViewed
+            );
+
+            saveData(expData);
+
+            // 显示最终决策区域
+            showFinalSection(cd);
+        }
+
+        function showFinalSection(cd) {
+            document.getElementById('initialDecisionDisplay').innerHTML = `
+                <div class="case-info-row">
+                    <span class="case-info-label">诊断：</span>
+                    <span class="case-info-value">
+                        1. ${cd.initialDecision.diagnosis[0]}<br>
+                        2. ${cd.initialDecision.diagnosis[1]}<br>
+                        3. ${cd.initialDecision.diagnosis[2]}
+                    </span>
+                </div>
+                <div class="case-info-row">
+                    <span class="case-info-label">抗生素：</span>
+                    <span class="case-info-value">${cd.initialDecision.useAntibiotic ? '使用 - ' + cd.initialDecision.antibiotics : '不使用'}</span>
+                </div>
+            `;
+
+            document.getElementById('initialDecisionSection').classList.add('hidden');
+            document.getElementById('finalDecisionSection').classList.remove('hidden');
+
+            // 预填充最终决策表单（使用初步诊断的值）
+            document.getElementById('finalDiag1').value = cd.initialDecision.diagnosis[0];
+            document.getElementById('finalDiag2').value = cd.initialDecision.diagnosis[1];
+            document.getElementById('finalDiag3').value = cd.initialDecision.diagnosis[2];
+
+            const radio = document.querySelector(`input[name="finalAntibiotic"][value="${cd.initialDecision.useAntibiotic ? 'yes' : 'no'}"]`);
+            if (radio) {
+                radio.checked = true;
+                radio.dispatchEvent(new Event('change'));
+            }
+
+            if (cd.initialDecision.useAntibiotic) {
+                document.getElementById('finalAntibioticInput').value = cd.initialDecision.antibiotics;
+            }
+
+            // 确保AI侧边栏显示
+            const c = cases[curCase];
+            if (!document.getElementById('aiSidebar').classList.contains('active')) {
+                document.getElementById('aiSidebar').classList.add('active');
+                document.getElementById('aiInputSection').classList.add('hidden');
+
+                // 显示AI建议内容
+                document.getElementById('diagnosisContent').innerHTML = `
+                    <ul class="ai-diagnosis-list">
+                        ${c.aiRecommendation.diagnosis.map((d, i) => `<li>${i+1}. ${d}</li>`).join('')}
+                    </ul>
+                `;
+                document.getElementById('aiDiagnosisSection').classList.remove('hidden');
+
+                let treatmentHtml = `
+                    <div style="margin-bottom: 12px;">
+                        <strong>是否使用抗生素：</strong>
+                        <span class="ai-value">${c.aiRecommendation.useAntibiotic ? '建议使用' : '不建议使用'}</span>
+                    </div>
+                `;
+                if (c.aiRecommendation.useAntibiotic && c.aiRecommendation.antibioticType) {
+                    treatmentHtml += `
+                        <div style="margin-bottom: 12px;">
+                            <strong>推荐抗生素：</strong>
+                            <span class="ai-value">${c.aiRecommendation.antibioticType}</span>
+                        </div>
+                    `;
+                }
+                if (c.aiRecommendation.reasoning) {
+                    treatmentHtml += `
+                        <div class="ai-reasoning">
+                            <strong>建议理由：</strong><br>
+                            ${c.aiRecommendation.reasoning}
+                        </div>
+                    `;
+                }
+                document.getElementById('treatmentContent').innerHTML = treatmentHtml;
+                document.getElementById('aiTreatmentSection').classList.remove('hidden');
+            }
+        }
+
+        function submitFinalDecision() {
+            const d1 = document.getElementById('finalDiag1');
+            const d2 = document.getElementById('finalDiag2');
+            const d3 = document.getElementById('finalDiag3');
+            const ab = document.querySelector('input[name="finalAntibiotic"]:checked');
+            const cert = document.querySelector('input[name="certainty"]:checked');
+            const absInput = document.getElementById('finalAntibioticInput');
+
+            // 清除之前的错误高亮
+            [d1, d2, d3, absInput].forEach(el => clearErrorHighlight(el));
+
+            // 验证所有必填字段
+            if (!d1.value.trim()) {
+                d1.classList.add('error-field');
+                alert('请填写第一诊断');
+                d1.focus();
+                return;
+            }
+            if (!d2.value.trim()) {
+                d2.classList.add('error-field');
+                alert('请填写第二诊断');
+                d2.focus();
+                return;
+            }
+            if (!d3.value.trim()) {
+                d3.classList.add('error-field');
+                alert('请填写第三诊断');
+                d3.focus();
+                return;
+            }
+            if (!ab) {
+                alert('请选择是否使用抗生素');
+                return;
+            }
+
+            const useAb = ab.value === 'yes';
+            let abs = '';
+
+            // 如果选择使用抗生素，必须填写抗生素种类
+            if (useAb) {
+                abs = absInput.value.trim();
+                if (!abs) {
+                    absInput.classList.add('error-field');
+                    alert('请填写抗生素种类');
+                    absInput.focus();
+                    return;
+                }
+            }
+
+            if (!cert) {
+                alert('请选择决策确定性');
+                return;
+            }
+
+            const c = cases[curCase];
+            const cd = expData.cases.find(x => x.caseId === c.id);
+
+            cd.finalDecision = {
+                diagnosis: [d1.value.trim(), d2.value.trim(), d3.value.trim()],
+                useAntibiotic: useAb,
+                antibiotics: abs,
+                certainty: parseInt(cert.value)
+            };
+            cd.timestamps.finalSubmit = new Date().toISOString();
+
+            // 计算从查看AI建议到最终决策提交的时间
+            cd.durations.finalDecisionTime = calculateDuration(
+                cd.timestamps.aiViewed,
+                cd.timestamps.finalSubmit
+            );
+
+            // 计算案例总耗时（从案例开始到最终决策提交）
+            cd.durations.totalCaseTime = calculateDuration(
+                cd.timestamps.caseStart,
+                cd.timestamps.finalSubmit
+            );
+
+            completedCases++;
+            updateProgress();
+            saveData(expData);
+
+            // 重置表单
+            d1.value = '';
+            d2.value = '';
+            d3.value = '';
+            document.querySelectorAll('input[name="finalAntibiotic"]').forEach(r => r.checked = false);
+            document.querySelectorAll('input[name="certainty"]').forEach(r => r.checked = false);
+            absInput.value = '';
+            document.getElementById('aiInputMedicalRecord').value = '';
+
+            // 隐藏AI侧边栏
+            document.getElementById('aiSidebar').classList.remove('active');
+
+            // 检查是否完成所有案例
+            if (completedCases >= 5) {
+                // 完成实验，直接发送数据
+                expData.endTime = new Date().toISOString();
+
+                // 计算实验总耗时
+                expData.totalExperimentDuration = calculateDuration(expData.startTime, expData.endTime);
+
+                saveData(expData, true);
+
+                console.log('实验完成，数据：', expData);
+
+                document.getElementById('completedParticipantId').textContent = expData.participantId;
+                document.getElementById('caseContentArea').classList.add('hidden');
+                document.getElementById('completionArea').classList.remove('hidden');
+                window.scrollTo(0, 0);
+            } else {
+                // 显示完成信息和时间统计
+                const timeInfo = `
+初步诊断耗时：${formatDuration(cd.durations.initialDecisionTime)}
+查看AI耗时：${formatDuration(cd.durations.timeToAIInput)}
+最终决策耗时：${formatDuration(cd.durations.finalDecisionTime)}
+案例总耗时：${formatDuration(cd.durations.totalCaseTime)}`;
+
+                alert(`✓ ${c.name}已完成！\n\n${timeInfo}\n\n请继续下一个案例。`);
+                switchCase(curCase + 1);
+            }
+        }
+
+        function downloadData() {
+            const dataStr = JSON.stringify(expData, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `experiment-data-${expData.participantId}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        init();
+    </script>
+</body>
+</html>
