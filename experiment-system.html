@@ -1,0 +1,2231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI临床决策支持系统 - 分辨率VI实验设计</title>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f5f7fa; padding: 20px; }
+
+        .welcome-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+        .welcome-box { background: white; border-radius: 16px; padding: 40px; max-width: 500px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .welcome-box h2 { color: #1976d2; font-size: 24px; margin-bottom: 16px; text-align: center; }
+        .welcome-box p { color: #616161; line-height: 1.6; margin-bottom: 24px; font-size: 14px; }
+        .welcome-input { width: 100%; padding: 12px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; margin-bottom: 24px; font-weight: 600; }
+        .welcome-input:focus { outline: none; border-color: #1976d2; }
+        .welcome-btn { width: 100%; padding: 14px; background: #1976d2; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .welcome-btn:hover { background: #1565c0; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(25,118,210,0.3); }
+        .welcome-btn:disabled { background: #e0e0e0; cursor: not-allowed; transform: none; }
+        .welcome-info { background: #e3f2fd; padding: 12px; border-radius: 8px; margin-top: 16px; font-size: 12px; color: #1565c0; line-height: 1.6; }
+        .error-text { color: #d32f2f; font-size: 12px; margin-top: 8px; display: none; }
+
+        .survey-item { margin-bottom: 20px; }
+        .survey-question { font-size: 14px; color: #2c3e50; margin-bottom: 10px; font-weight: 500; line-height: 1.5; }
+        .likert-scale, .likert-scale-7 { display: flex; flex-wrap: wrap; gap: 8px; }
+        .likert-scale label, .likert-scale-7 label { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; font-size: 13px; transition: all 0.2s; background: white; }
+        .likert-scale label:hover, .likert-scale-7 label:hover { background: #f0f9ff; border-color: #3498db; }
+        .likert-scale label input, .likert-scale-7 label input { margin-right: 6px; }
+        .likert-scale input:checked + label, .likert-scale-7 input:checked + label,
+        .likert-scale label:has(input:checked), .likert-scale-7 label:has(input:checked) { background: #3498db; color: white; border-color: #3498db; }
+
+        .main-wrapper { max-width: 1400px; margin: 0 auto; }
+        .header { background: white; padding: 20px 30px; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 4px solid #3498db; }
+        .header h1 { color: #2c3e50; font-size: 20px; margin-bottom: 8px; font-weight: 600; }
+        .experiment-tag { display: inline-block; background: #ecf0f1; color: #34495e; padding: 5px 12px; border-radius: 3px; font-size: 12px; font-weight: 500; }
+        .feature-indicator { display: inline-block; margin-left: 10px; padding: 4px 8px; background: #e8f5e9; color: #2e7d32; border-radius: 3px; font-size: 11px; }
+        .feature-indicator.basic { background: #e3f2fd; color: #1565c0; }
+        .save-status { float: right; font-size: 12px; color: #27ae60; padding: 5px 12px; background: #d4edda; border-radius: 3px; }
+
+        .case-navigation { background: white; padding: 15px 30px; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 12px; border-bottom: 2px solid #e0e6ed; }
+        .progress-title { font-size: 15px; font-weight: 600; color: #2c3e50; }
+        .progress-stats { display: flex; gap: 20px; font-size: 13px; }
+        .progress-stat-item { display: flex; align-items: center; gap: 6px; }
+        .progress-stat-label { color: #718096; }
+        .progress-stat-value { font-weight: 600; color: #3498db; }
+        .progress-bar-wrapper { margin-bottom: 20px; }
+        .progress-bar-bg { width: 100%; height: 20px; background: #e0e6ed; border-radius: 10px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #3498db 0%, #2ecc71 100%); border-radius: 10px; transition: width 0.4s ease; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; }
+        .progress-bar-text { color: white; font-size: 11px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        .system-group { margin-bottom: 15px; }
+        .system-group-title { font-size: 14px; font-weight: 600; color: #2c3e50; margin-bottom: 8px; padding: 8px 12px; background: #f8f9fa; border-radius: 4px; }
+        .case-nav-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .case-nav-btn { padding: 10px 20px; border: 2px solid #d1d5db; background: white; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; color: #4a5568; transition: all 0.2s; }
+        .case-nav-btn.current { background: #3498db; border-color: #3498db; color: white; }
+        .case-nav-btn.completed { background: #27ae60; border-color: #27ae60; color: white; }
+
+        .content-layout { display: flex; gap: 20px; align-items: flex-start; }
+        .main-content { flex: 1; min-width: 0; }
+
+        .ai-sidebar { width: 420px; background: white; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; display: none; }
+        .ai-sidebar.active { display: block; }
+        .ai-sidebar-header { padding: 18px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 6px 6px 0 0; }
+        .ai-sidebar-content { padding: 20px; }
+
+        .ai-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 9999; }
+        .ai-modal-overlay.active { display: flex; }
+        .ai-modal-overlay.minimized {
+            align-items: flex-end;
+            justify-content: flex-end;
+            padding: 20px;
+            pointer-events: none;
+            background: transparent;
+        }
+        .ai-modal { background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto; position: relative; transition: all 0.3s ease; }
+        .ai-modal.minimized {
+            max-width: 300px;
+            max-height: 60px;
+            overflow: hidden;
+            pointer-events: auto;
+        }
+        .ai-modal-header { padding: 18px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; }
+        .ai-modal-controls { display: flex; gap: 8px; }
+        .ai-modal-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+        .ai-modal-btn:hover { background: rgba(255,255,255,0.3); }
+        .ai-modal-content { padding: 20px; }
+        .ai-modal.minimized .ai-modal-content { display: none; }
+
+        .ai-section { margin-bottom: 25px; padding: 16px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #3498db; }
+        .ai-section.hidden { display: none; }
+        .ai-section-title { font-size: 14px; font-weight: 600; color: #2c3e50; margin-bottom: 12px; }
+
+        .thinking-process { background: #fff9e6; border-left: 3px solid #f39c12; padding: 12px; border-radius: 4px; margin-bottom: 12px; }
+        .thinking-step { padding: 8px 0; color: #856404; font-size: 13px; line-height: 1.6; opacity: 0; animation: fadeIn 0.3s forwards; }
+        @keyframes fadeIn { to { opacity: 1; } }
+        .thinking-label { font-weight: 600; color: #e67e22; }
+
+        .ai-conclusion { background: #e8f5e9; border: 2px solid #27ae60; padding: 14px; border-radius: 6px; margin-top: 12px; }
+        .conclusion-label { font-weight: 600; color: #2e7d32; margin-bottom: 8px; font-size: 14px; }
+
+        .diagnosis-item-with-confidence { padding: 10px; background: white; border-radius: 4px; margin-bottom: 8px; border: 1px solid #e0e6ed; }
+        .diagnosis-name { font-weight: 600; color: #2c3e50; margin-bottom: 6px; }
+        .confidence-bar-container { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+        .confidence-bar { flex: 1; height: 8px; background: #e0e6ed; border-radius: 4px; overflow: hidden; }
+        .confidence-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+        .confidence-fill.high { background: #27ae60; }
+        .confidence-fill.medium { background: #f39c12; }
+        .confidence-fill.low { background: #e74c3c; }
+        .confidence-text { font-size: 13px; font-weight: 600; color: #4a5568; min-width: 45px; text-align: right; }
+        .confidence-explain { font-size: 11px; color: #718096; margin-top: 4px; }
+
+        .ig-visualization { background: white; border: 1px solid #e0e6ed; border-radius: 6px; padding: 16px; margin-top: 12px; }
+        .ig-title { font-size: 13px; font-weight: 600; color: #2c3e50; margin-bottom: 8px; }
+        .ig-explain { font-size: 11px; color: #718096; margin-bottom: 12px; line-height: 1.5; }
+        .ig-chart-container { position: relative; height: 280px; }
+
+        .antibiotic-recommendation { margin-top: 12px; }
+        .antibiotic-standard { background: #fff3e0; border-left: 3px solid #ff9800; padding: 12px; border-radius: 4px; margin-bottom: 8px; }
+        .antibiotic-primary { background: #f0fdf4; border: 2px solid #27ae60; padding: 12px; border-radius: 4px; }
+        .searching-indicator { color: #1976d2; font-style: italic; animation: pulse 1.5s ease-in-out infinite; margin: 10px 0; font-size: 13px; }
+        @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+        .panel { background: white; border-radius: 6px; padding: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .panel-title { font-size: 16px; font-weight: 600; color: #2c3e50; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e0e6ed; }
+
+        .medical-record-textarea { width: 100%; min-height: 400px; padding: 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; font-family: 'Microsoft YaHei', monospace; line-height: 1.8; background: #f8f9fa; resize: none; overflow: hidden; }
+
+        .input-group { margin-bottom: 18px; }
+        .input-group label { display: block; font-weight: 600; color: #4a5568; margin-bottom: 8px; font-size: 13px; }
+        .input-group input[type="text"], .input-group input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; }
+
+        .diagnosis-list { margin-top: 10px; }
+        .diagnosis-item { display: grid; grid-template-columns: 90px 1fr; gap: 10px; margin-bottom: 10px; align-items: center; }
+
+        .radio-group { margin-top: 8px; }
+        .radio-group label { display: block; font-weight: normal; margin-bottom: 6px; cursor: pointer; padding: 9px 12px; border-radius: 4px; transition: background 0.2s; }
+        .radio-group label:hover { background: #f7fafc; }
+        .radio-group input { margin-right: 8px; }
+
+        .btn { padding: 11px 24px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #3498db; color: white; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
+        .btn-ai-suggest { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-ai-suggest:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        .action-buttons { margin-top: 25px; text-align: right; }
+        .action-buttons .btn { margin-left: 10px; }
+
+        .hidden { display: none; }
+        .required-mark { color: #e53e3e; }
+        .help-text { font-size: 12px; color: #718096; margin-top: 4px; }
+
+        @media (max-width: 1200px) {
+            .content-layout { flex-direction: column; }
+            .ai-sidebar { width: 100%; position: relative; top: 0; max-height: none; }
+        }
+    </style>
+</head>
+<body>
+    <!-- 第一步：姓名输入 -->
+    <div id="welcomeOverlay" class="welcome-overlay">
+        <div class="welcome-box">
+            <h2>🎓 欢迎参与临床AI实验</h2>
+            <p>感谢您参与本次研究!请输入您的姓名或工号,系统将自动为您分配实验方案。</p>
+            <input type="text" id="participantInput" class="welcome-input" placeholder="请输入您的姓名或工号">
+            <div id="errorText" class="error-text">请输入至少2个字符</div>
+            <button class="welcome-btn" id="startBtn" onclick="goToDemographics()">下一步</button>
+            <div class="welcome-info">
+                💡 <strong>提示:</strong>
+                <br>• 本实验采用分辨率VI的2^(6-1)部分析因设计
+                <br>• 共32种AI系统配置,您将体验其中3种
+                <br>• 每种配置需完成3个病历(共9个病历)
+                <br>• 所有系统都提供AI辅助诊断建议
+                <br>• 整个实验约需45-60分钟
+            </div>
+        </div>
+    </div>
+
+    <!-- 第二步：个人信息表单 -->
+    <div id="demographicsOverlay" class="welcome-overlay" style="display: none;">
+        <div class="welcome-box" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+            <h2>📋 个人信息调查</h2>
+            <p style="font-size: 13px; margin-bottom: 20px;">请如实填写以下信息，所有数据仅用于研究分析</p>
+
+            <div style="text-align: left;">
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">1. 性别 <span class="required-mark">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="gender" value="男">男</label>
+                        <label><input type="radio" name="gender" value="女">女</label>
+                    </div>
+                </div>
+
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">2. 年龄 <span class="required-mark">*</span></label>
+                    <input type="number" id="age" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;" placeholder="请输入年龄">
+                </div>
+
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">3. 文化程度 <span class="required-mark">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="education" value="小学及以下">小学及以下</label>
+                        <label><input type="radio" name="education" value="初中">初中</label>
+                        <label><input type="radio" name="education" value="高中或中专">高中或中专</label>
+                        <label><input type="radio" name="education" value="大专或本科">大专或本科</label>
+                        <label><input type="radio" name="education" value="硕士研究生">硕士研究生</label>
+                        <label><input type="radio" name="education" value="博士研究生">博士研究生</label>
+                    </div>
+                </div>
+
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">4. 您所在的省份 <span class="required-mark">*</span></label>
+                    <input type="text" id="province" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;" placeholder="请输入省份">
+                </div>
+
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">5. 基层工作年限（年）<span class="required-mark">*</span></label>
+                    <input type="number" id="workYears" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;" placeholder="请输入工作年限">
+                </div>
+
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">6. 职称 <span class="required-mark">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="title" value="高级">高级</label>
+                        <label><input type="radio" name="title" value="中级">中级</label>
+                        <label><input type="radio" name="title" value="初级">初级</label>
+                        <label><input type="radio" name="title" value="未定级">未定级</label>
+                    </div>
+                </div>
+
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">7. 基层医疗机构类型 <span class="required-mark">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="facility" value="社区卫生服务中心">社区卫生服务中心</label>
+                        <label><input type="radio" name="facility" value="社区卫生服务站">社区卫生服务站</label>
+                        <label><input type="radio" name="facility" value="乡镇卫生院">乡镇卫生院</label>
+                        <label><input type="radio" name="facility" value="村卫生室">村卫生室</label>
+                    </div>
+                </div>
+
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">8. 日均诊疗人次（个人）<span class="required-mark">*</span></label>
+                    <input type="number" id="dailyPatients" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;" placeholder="请输入日均诊疗人次">
+                </div>
+
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">9. 您对人工智能的了解程度 <span class="required-mark">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="aiKnowledge" value="非常了解">非常了解</label>
+                        <label><input type="radio" name="aiKnowledge" value="比较了解">比较了解</label>
+                        <label><input type="radio" name="aiKnowledge" value="一般">一般</label>
+                        <label><input type="radio" name="aiKnowledge" value="比较不了解">比较不了解</label>
+                        <label><input type="radio" name="aiKnowledge" value="非常不了解">非常不了解</label>
+                    </div>
+                </div>
+
+                <div class="input-group" style="margin-bottom: 20px;">
+                    <label style="font-weight: 600; margin-bottom: 8px; display: block;">10. 是否在诊疗决策中使用过人工智能进行辅助 <span class="required-mark">*</span></label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="aiExperience" value="是">是</label>
+                        <label><input type="radio" name="aiExperience" value="否">否</label>
+                    </div>
+                </div>
+            </div>
+
+            <button class="welcome-btn" onclick="submitDemographics()">提交并开始实验</button>
+        </div>
+    </div>
+
+    <!-- 系统完成后的量表 -->
+    <div id="systemSurveyOverlay" class="welcome-overlay" style="display: none;">
+        <div class="welcome-box" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+            <h2>📊 系统评价量表</h2>
+            <p style="font-size: 13px; margin-bottom: 20px; color: #718096;">
+                您已完成<strong id="surveySystemName" style="color: #3498db;"></strong>的所有病历！<br>
+                请根据您刚才的使用体验，对该AI系统进行评价
+            </p>
+
+            <div style="text-align: left;">
+                <!-- 采纳意愿 -->
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                    <h3 style="font-size: 15px; color: #2c3e50; margin-bottom: 15px;">B. 采纳意愿</h3>
+
+                    <div class="survey-item">
+                        <p class="survey-question">1. 当我所在的机构引入该AI-CDSS后，我愿意将其应用于日常诊疗</p>
+                        <div class="likert-scale">
+                            <label><input type="radio" name="intention1" value="1">1 非常不同意</label>
+                            <label><input type="radio" name="intention1" value="2">2 不同意</label>
+                            <label><input type="radio" name="intention1" value="3">3 不太确定</label>
+                            <label><input type="radio" name="intention1" value="4">4 同意</label>
+                            <label><input type="radio" name="intention1" value="5">5 非常同意</label>
+                        </div>
+                    </div>
+
+                    <div class="survey-item">
+                        <p class="survey-question">2. 我打算根据实际需求，使用AI-CDSS为患者提供医疗服务</p>
+                        <div class="likert-scale">
+                            <label><input type="radio" name="intention2" value="1">1 非常不同意</label>
+                            <label><input type="radio" name="intention2" value="2">2 不同意</label>
+                            <label><input type="radio" name="intention2" value="3">3 不太确定</label>
+                            <label><input type="radio" name="intention2" value="4">4 同意</label>
+                            <label><input type="radio" name="intention2" value="5">5 非常同意</label>
+                        </div>
+                    </div>
+
+                    <div class="survey-item">
+                        <p class="survey-question">3. 在条件允许的情况下，我愿意频繁使用AI-CDSS开展日常诊疗</p>
+                        <div class="likert-scale">
+                            <label><input type="radio" name="intention3" value="1">1 非常不同意</label>
+                            <label><input type="radio" name="intention3" value="2">2 不同意</label>
+                            <label><input type="radio" name="intention3" value="3">3 不太确定</label>
+                            <label><input type="radio" name="intention3" value="4">4 同意</label>
+                            <label><input type="radio" name="intention3" value="5">5 非常同意</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 感知有用性 -->
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                    <h3 style="font-size: 15px; color: #2c3e50; margin-bottom: 15px;">C. 感知有用性</h3>
+
+                    <div class="survey-item">
+                        <p class="survey-question">1. 在工作中使用AI-CDSS能让我更快地完成任务</p>
+                        <div class="likert-scale-7">
+                            <label><input type="radio" name="usefulness1" value="1">1</label>
+                            <label><input type="radio" name="usefulness1" value="2">2</label>
+                            <label><input type="radio" name="usefulness1" value="3">3</label>
+                            <label><input type="radio" name="usefulness1" value="4">4</label>
+                            <label><input type="radio" name="usefulness1" value="5">5</label>
+                            <label><input type="radio" name="usefulness1" value="6">6</label>
+                            <label><input type="radio" name="usefulness1" value="7">7</label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #718096; margin-top: 4px;">
+                            <span>非常不同意</span>
+                            <span>非常同意</span>
+                        </div>
+                    </div>
+
+                    <div class="survey-item">
+                        <p class="survey-question">2. 使用AI-CDSS会提高我的工作表现</p>
+                        <div class="likert-scale-7">
+                            <label><input type="radio" name="usefulness2" value="1">1</label>
+                            <label><input type="radio" name="usefulness2" value="2">2</label>
+                            <label><input type="radio" name="usefulness2" value="3">3</label>
+                            <label><input type="radio" name="usefulness2" value="4">4</label>
+                            <label><input type="radio" name="usefulness2" value="5">5</label>
+                            <label><input type="radio" name="usefulness2" value="6">6</label>
+                            <label><input type="radio" name="usefulness2" value="7">7</label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #718096; margin-top: 4px;">
+                            <span>非常不同意</span>
+                            <span>非常同意</span>
+                        </div>
+                    </div>
+
+                    <div class="survey-item">
+                        <p class="survey-question">3. 在工作中使用AI-CDSS会提高我的工作效率</p>
+                        <div class="likert-scale-7">
+                            <label><input type="radio" name="usefulness3" value="1">1</label>
+                            <label><input type="radio" name="usefulness3" value="2">2</label>
+                            <label><input type="radio" name="usefulness3" value="3">3</label>
+                            <label><input type="radio" name="usefulness3" value="4">4</label>
+                            <label><input type="radio" name="usefulness3" value="5">5</label>
+                            <label><input type="radio" name="usefulness3" value="6">6</label>
+                            <label><input type="radio" name="usefulness3" value="7">7</label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #718096; margin-top: 4px;">
+                            <span>非常不同意</span>
+                            <span>非常同意</span>
+                        </div>
+                    </div>
+
+                    <div class="survey-item">
+                        <p class="survey-question">4. 使用AI-CDSS会增强我的工作有效性</p>
+                        <div class="likert-scale-7">
+                            <label><input type="radio" name="usefulness4" value="1">1</label>
+                            <label><input type="radio" name="usefulness4" value="2">2</label>
+                            <label><input type="radio" name="usefulness4" value="3">3</label>
+                            <label><input type="radio" name="usefulness4" value="4">4</label>
+                            <label><input type="radio" name="usefulness4" value="5">5</label>
+                            <label><input type="radio" name="usefulness4" value="6">6</label>
+                            <label><input type="radio" name="usefulness4" value="7">7</label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #718096; margin-top: 4px;">
+                            <span>非常不同意</span>
+                            <span>非常同意</span>
+                        </div>
+                    </div>
+
+                    <div class="survey-item">
+                        <p class="survey-question">5. 使用AI-CDSS会让我的工作更轻松</p>
+                        <div class="likert-scale-7">
+                            <label><input type="radio" name="usefulness5" value="1">1</label>
+                            <label><input type="radio" name="usefulness5" value="2">2</label>
+                            <label><input type="radio" name="usefulness5" value="3">3</label>
+                            <label><input type="radio" name="usefulness5" value="4">4</label>
+                            <label><input type="radio" name="usefulness5" value="5">5</label>
+                            <label><input type="radio" name="usefulness5" value="6">6</label>
+                            <label><input type="radio" name="usefulness5" value="7">7</label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #718096; margin-top: 4px;">
+                            <span>非常不同意</span>
+                            <span>非常同意</span>
+                        </div>
+                    </div>
+
+                    <div class="survey-item">
+                        <p class="survey-question">6. 我认为AI-CDSS在工作中是有用的</p>
+                        <div class="likert-scale-7">
+                            <label><input type="radio" name="usefulness6" value="1">1</label>
+                            <label><input type="radio" name="usefulness6" value="2">2</label>
+                            <label><input type="radio" name="usefulness6" value="3">3</label>
+                            <label><input type="radio" name="usefulness6" value="4">4</label>
+                            <label><input type="radio" name="usefulness6" value="5">5</label>
+                            <label><input type="radio" name="usefulness6" value="6">6</label>
+                            <label><input type="radio" name="usefulness6" value="7">7</label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #718096; margin-top: 4px;">
+                            <span>非常不同意</span>
+                            <span>非常同意</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 感知易用性 -->
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                    <h3 style="font-size: 15px; color: #2c3e50; margin-bottom: 15px;">D. 感知易用性</h3>
+
+                    <div class="survey-item">
+                        <p class="survey-question">1. 学习操作AI-CDSS对我来说会很容易</p>
+                        <div class="likert-scale-7">
+                            <label><input type="radio" name="easeOfUse1" value="1">1</label>
+                            <label><input type="radio" name="easeOfUse1" value="2">2</label>
+                            <label><input type="radio" name="easeOfUse1" value="3">3</label>
+                            <label><input type="radio" name="easeOfUse1" value="4">4</label>
+                            <label><input type="radio" name="easeOfUse1" value="5">5</label>
+                            <label><input type="radio" name="easeOfUse1" value="6">6</label>
+                            <label><input type="radio" name="easeOfUse1" value="7">7</label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #718096; margin-top: 4px;">
+                            <span>非常不同意</span>
+                            <span>非常同意</span>
+                        </div>
+                    </div>
+
+                    <div class="survey-item">
+                        <p class="survey-question">2. 我发现让AI-CDSS完成我想要的操作很容易</p>
+                        <div class="likert-scale-7">
+                            <label><input type="radio" name="easeOfUse2" value="1">1</label>
+                            <label><input type="radio" name="easeOfUse2" value="2">2</label>
+                            <label><input type="radio" name="easeOfUse2" value="3">3</label>
+                            <label><input type="radio" name="easeOfUse2" value="4">4</label>
+                            <label><input type="radio" name="easeOfUse2" value="5">5</label>
+                            <label><input type="radio" name="easeOfUse2" value="6">6</label>
+                            <label><input type="radio" name="easeOfUse2" value="7">7</label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #718096; margin-top: 4px;">
+                            <span>非常不同意</span>
+                            <span>非常同意</span>
+                        </div>
+                    </div>
+
+                    <div class="survey-item">
+                        <p class="survey-question">3. 我与AI-CDSS的交互是清晰易懂的</p>
+                        <div class="likert-scale-7">
+                            <label><input type="radio" name="easeOfUse3" value="1">1</label>
+                            <label><input type="radio" name="easeOfUse3" value="2">2</label>
+                            <label><input type="radio" name="easeOfUse3" value="3">3</label>
+                            <label><input type="radio" name="easeOfUse3" value="4">4</label>
+                            <label><input type="radio" name="easeOfUse3" value="5">5</label>
+                            <label><input type="radio" name="easeOfUse3" value="6">6</label>
+                            <label><input type="radio" name="easeOfUse3" value="7">7</label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #718096; margin-top: 4px;">
+                            <span>非常不同意</span>
+                            <span>非常同意</span>
+                        </div>
+                    </div>
+
+                    <div class="survey-item">
+                        <p class="survey-question">4. 我发现AI-CDSS的交互方式是灵活的</p>
+                        <div class="likert-scale-7">
+                            <label><input type="radio" name="easeOfUse4" value="1">1</label>
+                            <label><input type="radio" name="easeOfUse4" value="2">2</label>
+                            <label><input type="radio" name="easeOfUse4" value="3">3</label>
+                            <label><input type="radio" name="easeOfUse4" value="4">4</label>
+                            <label><input type="radio" name="easeOfUse4" value="5">5</label>
+                            <label><input type="radio" name="easeOfUse4" value="6">6</label>
+                            <label><input type="radio" name="easeOfUse4" value="7">7</label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #718096; margin-top: 4px;">
+                            <span>非常不同意</span>
+                            <span>非常同意</span>
+                        </div>
+                    </div>
+
+                    <div class="survey-item">
+                        <p class="survey-question">5. 我能够很容易地熟练使用AI-CDSS</p>
+                        <div class="likert-scale-7">
+                            <label><input type="radio" name="easeOfUse5" value="1">1</label>
+                            <label><input type="radio" name="easeOfUse5" value="2">2</label>
+                            <label><input type="radio" name="easeOfUse5" value="3">3</label>
+                            <label><input type="radio" name="easeOfUse5" value="4">4</label>
+                            <label><input type="radio" name="easeOfUse5" value="5">5</label>
+                            <label><input type="radio" name="easeOfUse5" value="6">6</label>
+                            <label><input type="radio" name="easeOfUse5" value="7">7</label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #718096; margin-top: 4px;">
+                            <span>非常不同意</span>
+                            <span>非常同意</span>
+                        </div>
+                    </div>
+
+                    <div class="survey-item">
+                        <p class="survey-question">6. 我认为AI-CDSS易于使用</p>
+                        <div class="likert-scale-7">
+                            <label><input type="radio" name="easeOfUse6" value="1">1</label>
+                            <label><input type="radio" name="easeOfUse6" value="2">2</label>
+                            <label><input type="radio" name="easeOfUse6" value="3">3</label>
+                            <label><input type="radio" name="easeOfUse6" value="4">4</label>
+                            <label><input type="radio" name="easeOfUse6" value="5">5</label>
+                            <label><input type="radio" name="easeOfUse6" value="6">6</label>
+                            <label><input type="radio" name="easeOfUse6" value="7">7</label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #718096; margin-top: 4px;">
+                            <span>非常不同意</span>
+                            <span>非常同意</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="welcome-btn" onclick="submitSystemSurvey()">提交评价</button>
+        </div>
+    </div>
+
+    <div class="main-wrapper" id="mainContent" style="display: none;">
+        <div class="header">
+            <span class="save-status" id="saveStatus">已保存</span>
+            <h1>AI临床决策支持系统 - 呼吸道感染诊疗</h1>
+            <div class="experiment-tag" id="experimentTag">加载中...</div>
+            <span class="feature-indicator" id="featureIndicator" style="display: none;"></span>
+        </div>
+
+        <div class="case-navigation" id="caseNavigation">
+            <div class="progress-header">
+                <div class="progress-title">实验进度</div>
+                <div class="progress-stats">
+                    <div class="progress-stat-item">
+                        <span class="progress-stat-label">已完成:</span>
+                        <span class="progress-stat-value" id="completedCount">0/9</span>
+                    </div>
+                    <div class="progress-stat-item">
+                        <span class="progress-stat-label">当前:</span>
+                        <span class="progress-stat-value" id="currentCase">案例1</span>
+                    </div>
+                </div>
+            </div>
+            <div class="progress-bar-wrapper">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progressBarFill" style="width: 0%">
+                        <span class="progress-bar-text" id="progressBarText">0%</span>
+                    </div>
+                </div>
+            </div>
+            <div id="caseNavigationContent"></div>
+        </div>
+
+        <div class="content-layout">
+            <div class="main-content">
+                <div id="caseContentArea">
+                    <div class="panel">
+                        <div class="panel-title">患者病历信息</div>
+                        <div class="input-group">
+                            <label>完整病历</label>
+                            <textarea id="medicalRecordDisplay" class="medical-record-textarea" readonly></textarea>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-title">诊疗决策</div>
+                        <div id="initialDecisionSection">
+                            <div style="background: #d4edda; color: #155724; padding: 8px 12px; border-radius: 4px; margin-bottom: 15px; font-size: 12px; font-weight: 600;">
+                                阶段1:初步诊断(未看AI建议)
+                            </div>
+                            <div class="input-group">
+                                <label>诊断(按可能性从大到小排列)<span class="required-mark">*</span></label>
+                                <div class="help-text">请列出最可能的三个诊断</div>
+                                <div class="diagnosis-list">
+                                    <div class="diagnosis-item"><span style="font-size: 13px; color: #718096;">最可能:</span><input type="text" id="initialDiag1" placeholder="第一诊断"></div>
+                                    <div class="diagnosis-item"><span style="font-size: 13px; color: #718096;">次可能:</span><input type="text" id="initialDiag2" placeholder="第二诊断"></div>
+                                    <div class="diagnosis-item"><span style="font-size: 13px; color: #718096;">第三可能:</span><input type="text" id="initialDiag3" placeholder="第三诊断"></div>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>是否使用抗生素 <span class="required-mark">*</span></label>
+                                <div class="radio-group">
+                                    <label><input type="radio" name="initialAntibiotic" value="no">否,不使用抗生素</label>
+                                    <label><input type="radio" name="initialAntibiotic" value="yes">是,需要使用抗生素</label>
+                                </div>
+                            </div>
+                            <div class="input-group hidden" id="initialAntibioticTypes">
+                                <label>请填写抗生素种类<span class="required-mark">*</span></label>
+                                <input type="text" id="initialAntibioticInput" placeholder="例如:阿莫西林、头孢氨苄">
+                            </div>
+                            <div class="action-buttons">
+                                <button class="btn btn-ai-suggest" onclick="submitInitialDecision()">📊 提交并获取AI建议</button>
+                            </div>
+                        </div>
+
+                        <div id="finalDecisionSection" class="hidden">
+                            <div style="background: #cfe2ff; color: #084298; padding: 8px 12px; border-radius: 4px; margin-bottom: 15px; font-size: 12px; font-weight: 600;">
+                                阶段2:最终决策(已查看AI建议)
+                            </div>
+                            <div class="input-group">
+                                <label>诊断(按可能性从大到小排列)<span class="required-mark">*</span></label>
+                                <div class="diagnosis-list">
+                                    <div class="diagnosis-item"><span style="font-size: 13px; color: #718096;">最可能:</span><input type="text" id="finalDiag1"></div>
+                                    <div class="diagnosis-item"><span style="font-size: 13px; color: #718096;">次可能:</span><input type="text" id="finalDiag2"></div>
+                                    <div class="diagnosis-item"><span style="font-size: 13px; color: #718096;">第三可能:</span><input type="text" id="finalDiag3"></div>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>是否使用抗生素 <span class="required-mark">*</span></label>
+                                <div class="radio-group">
+                                    <label><input type="radio" name="finalAntibiotic" value="no">否,不使用抗生素</label>
+                                    <label><input type="radio" name="finalAntibiotic" value="yes">是,需要使用抗生素</label>
+                                </div>
+                            </div>
+                            <div class="input-group hidden" id="finalAntibioticTypes">
+                                <label>请填写抗生素种类<span class="required-mark">*</span></label>
+                                <input type="text" id="finalAntibioticInput">
+                            </div>
+                            <div class="input-group">
+                                <label>决策确定性 <span class="required-mark">*</span></label>
+                                <div class="radio-group">
+                                    <label><input type="radio" name="certainty" value="1">1 - 非常不确定</label>
+                                    <label><input type="radio" name="certainty" value="2">2 - 不确定</label>
+                                    <label><input type="radio" name="certainty" value="3">3 - 一般</label>
+                                    <label><input type="radio" name="certainty" value="4">4 - 确定</label>
+                                    <label><input type="radio" name="certainty" value="5">5 - 非常确定</label>
+                                </div>
+                            </div>
+                            <div class="action-buttons">
+                                <button class="btn btn-success" onclick="submitFinalDecision()">提交最终决策</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="completionArea" class="hidden">
+                    <div style="background: #d4edda; border: 2px solid #27ae60; border-radius: 6px; padding: 30px; text-align: center;">
+                        <h2 style="color: #155724;">✓ 实验已完成</h2>
+                        <p style="margin-top: 15px;">感谢您的参与!所有9个案例已完成。</p>
+                        <p style="font-size: 13px; color: #718096; margin-top: 15px;">参与者:<span id="completedParticipantId" style="font-weight: 600;"></span></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ai-sidebar" id="aiSidebar">
+                <div class="ai-sidebar-header">
+                    <h3>🤖 AI辅助诊疗系统</h3>
+                    <div style="font-size: 11px; opacity: 0.9; margin-top: 4px;">智能分析 · 辅助决策</div>
+                </div>
+                <div class="ai-sidebar-content">
+                    <div class="ai-section hidden" id="pasteSectionSidebar">
+                        <div class="ai-section-title">📋 请复制粘贴病历内容</div>
+                        <div style="color: #718096; font-size: 13px; line-height: 1.6; margin-bottom: 16px;">
+                            为了让AI系统分析病历,请将左侧的完整病历内容复制粘贴到下方文本框中:
+                        </div>
+                        <textarea id="pasteTextareaSidebar" class="medical-record-textarea" placeholder="请在此处粘贴完整病历内容..." style="margin-bottom: 16px;"></textarea>
+                        <div style="text-align: right;">
+                            <button class="btn btn-primary" onclick="submitPastedContentSidebar()">✓ 提交并获取AI建议</button>
+                        </div>
+                    </div>
+
+                    <div class="ai-section hidden" id="thinkingSection">
+                        <div class="ai-section-title">💭 AI推理过程</div>
+                        <div class="thinking-process" id="thinkingProcess"></div>
+                    </div>
+
+                    <div class="ai-section hidden" id="diagnosisSection">
+                        <div class="ai-section-title">🎯 诊断建议</div>
+                        <div id="diagnosisContent"></div>
+                    </div>
+
+                    <div class="ai-section hidden" id="featureSection">
+                        <div class="ai-section-title">📊 关键特征分析</div>
+                        <div class="ig-visualization">
+                            <div class="ig-title">病历特征对诊断的影响程度</div>
+                            <div class="ig-explain">
+                                此图显示各项病历信息对AI诊断决策的贡献度。<strong style="color: #27ae60;">绿色</strong>表示该特征支持当前诊断,<strong style="color: #e74c3c;">红色</strong>表示该特征不支持当前诊断。数值越大,影响越显著。
+                            </div>
+                            <div class="ig-chart-container">
+                                <canvas id="igChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ai-section hidden" id="treatmentSection">
+                        <div class="ai-section-title">💊 用药建议</div>
+                        <div id="treatmentContent"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-modal-overlay" id="aiModalOverlay">
+            <div class="ai-modal" id="aiModal">
+                <div class="ai-modal-header">
+                    <div>
+                        <h3>🤖 AI辅助诊疗系统</h3>
+                        <div style="font-size: 11px; opacity: 0.9; margin-top: 4px;">智能分析 · 辅助决策</div>
+                    </div>
+                    <div class="ai-modal-controls">
+                        <button class="ai-modal-btn" onclick="toggleMinimizeModal()" title="最小化">
+                            <span id="minimizeIcon">−</span>
+                        </button>
+                        <button class="ai-modal-btn" onclick="closeAIModal()" title="关闭">×</button>
+                    </div>
+                </div>
+                <div class="ai-modal-content">
+                    <div class="ai-section hidden" id="pasteSectionModal">
+                        <div class="ai-section-title">📋 请复制粘贴病历内容</div>
+                        <div style="color: #718096; font-size: 13px; line-height: 1.6; margin-bottom: 16px;">
+                            为了让AI系统分析病历,请将左侧的完整病历内容复制粘贴到下方文本框中:
+                        </div>
+                        <textarea id="pasteTextareaModal" class="medical-record-textarea" placeholder="请在此处粘贴完整病历内容..." style="margin-bottom: 16px;"></textarea>
+                        <div style="text-align: right;">
+                            <button class="btn btn-primary" onclick="submitPastedContentModal()">✓ 提交并获取AI建议</button>
+                        </div>
+                    </div>
+
+                    <div class="ai-section hidden" id="thinkingSectionModal">
+                        <div class="ai-section-title">💭 AI推理过程</div>
+                        <div class="thinking-process" id="thinkingProcessModal"></div>
+                    </div>
+
+                    <div class="ai-section hidden" id="diagnosisSectionModal">
+                        <div class="ai-section-title">🎯 诊断建议</div>
+                        <div id="diagnosisContentModal"></div>
+                    </div>
+
+                    <div class="ai-section hidden" id="featureSectionModal">
+                        <div class="ai-section-title">📊 关键特征分析</div>
+                        <div class="ig-visualization">
+                            <div class="ig-title">病历特征对诊断的影响程度</div>
+                            <div class="ig-explain">
+                                此图显示各项病历信息对AI诊断决策的贡献度。<strong style="color: #27ae60;">绿色</strong>表示该特征支持当前诊断,<strong style="color: #e74c3c;">红色</strong>表示该特征不支持当前诊断。数值越大,影响越显著。
+                            </div>
+                            <div class="ig-chart-container">
+                                <canvas id="igChartModal"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ai-section hidden" id="treatmentSectionModal">
+                        <div class="ai-section-title">💊 用药建议</div>
+                        <div id="treatmentContentModal"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========================================
+        // 病历数据库 (保持不变)
+        // ========================================
+        const CASE_DATABASE = {
+            case001: {
+                id: "case001",
+                patientId: "PT2023001",
+                gender: "男",
+                age: "45岁",
+                visitDate: "2023-10-15",
+                chiefComplaint: "发热、咳嗽、咳痰3天",
+                presentIllness: "患者3天前受凉后出现发热,体温最高38.5℃,伴有咳嗽、咳黄色粘痰,量不多,无胸痛、咯血。自行服用退热药后体温可暂时下降,但反复发热。",
+                personalHistory: "吸烟20年,每天10支;偶饮酒。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 38.2℃,P 92次/分,R 20次/分,BP 125/80mmHg。咽部充血,扁桃体无肿大。双肺呼吸音粗,可闻及少量湿性啰音。",
+                labTests: "血常规:WBC 12.5×10^9/L,N 85%。胸部X线:双肺纹理增粗。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者表现为急性发热、咳嗽、咳黄痰,提示急性呼吸道感染",
+                        "血常规显示白细胞和中性粒细胞均升高,支持细菌感染可能",
+                        "胸部X线未见明显肺炎表现,考虑急性支气管炎可能性大",
+                        "患者有吸烟史,是呼吸道感染的易感因素"
+                    ],
+                    diagnosis: [
+                        { name: "急性支气管炎", confidence: 85 },
+                        { name: "社区获得性肺炎", confidence: 40 },
+                        { name: "上呼吸道感染", confidence: 30 }
+                    ],
+                    featureImportance: {
+                        features: ["发热", "咳嗽", "咳黄痰", "白细胞升高", "吸烟史", "肺部湿啰音"],
+                        gradients: [0.8, 0.6, 0.7, 0.9, 0.4, 0.5]
+                    },
+                    useAntibiotic: true,
+                    antibioticStandard: "根据指南,急性支气管炎伴有脓痰和白细胞升高,建议使用抗生素治疗。首选阿莫西林克拉维酸钾或第二代头孢菌素。",
+                    antibioticPrimary: "阿莫西林克拉维酸钾 625mg 口服,每8小时一次,疗程5-7天",
+                    antibioticReasoning: "患者有明确的细菌感染证据(发热、黄痰、白细胞升高),且为吸烟者,感染风险较高,因此建议使用抗生素治疗。"
+                }
+            },
+            case002: {
+                id: "case002",
+                patientId: "PT2023002",
+                gender: "女",
+                age: "32岁",
+                visitDate: "2023-10-18",
+                chiefComplaint: "咽痛、流涕2天",
+                presentIllness: "患者2天前出现咽痛、流清涕,伴有轻微头痛,无发热,无咳嗽咳痰。自行服用感冒药后症状略有缓解。",
+                personalHistory: "无吸烟饮酒史。办公室文职人员。",
+                allergyHistory: "青霉素过敏",
+                physicalExam: "T 36.8℃,P 78次/分,R 18次/分,BP 110/70mmHg。咽部充血明显,扁桃体I度肿大,无脓点。双肺呼吸音清,未闻及干湿啰音。",
+                labTests: "血常规:WBC 7.2×10^9/L,N 65%。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者表现为咽痛、流涕等上呼吸道症状,无发热",
+                        "血常规正常,不支持细菌感染",
+                        "体格检查仅见咽部充血,无扁桃体化脓表现",
+                        "综合考虑为病毒性上呼吸道感染"
+                    ],
+                    diagnosis: [
+                        { name: "急性上呼吸道感染(病毒性)", confidence: 90 },
+                        { name: "急性咽炎", confidence: 70 },
+                        { name: "急性扁桃体炎", confidence: 20 }
+                    ],
+                    featureImportance: {
+                        features: ["咽痛", "流涕", "无发热", "血常规正常", "咽部充血", "扁桃体无脓点"],
+                        gradients: [0.7, 0.5, 0.8, 0.9, 0.6, 0.7]
+                    },
+                    useAntibiotic: false,
+                    antibioticStandard: "根据指南,单纯病毒性上呼吸道感染不建议使用抗生素。",
+                    antibioticPrimary: "",
+                    antibioticReasoning: "患者临床表现和实验室检查均不支持细菌感染,为典型的病毒性上呼吸道感染,因此不建议使用抗生素。建议对症治疗,多休息,多饮水。"
+                }
+            },
+            case003: {
+                id: "case003",
+                patientId: "PT2023003",
+                gender: "男",
+                age: "68岁",
+                visitDate: "2023-10-20",
+                chiefComplaint: "发热、咳嗽、胸痛5天",
+                presentIllness: "患者5天前开始发热,体温最高39.2℃,伴有咳嗽、咳铁锈色痰,右侧胸痛,深呼吸时加重。自行服用退热药效果不佳。",
+                personalHistory: "有高血压病史10年,规律服药;吸烟30年,已戒烟5年。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 39.0℃,P 105次/分,R 24次/分,BP 140/85mmHg。右下肺叩诊浊音,语颤增强,可闻及支气管呼吸音和湿性啰音。",
+                labTests: "血常规:WBC 15.8×10^9/L,N 90%。胸部CT:右下肺大片实变影,提示大叶性肺炎。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者表现为高热、咳嗽、铁锈色痰和胸痛,典型肺炎症状",
+                        "血常规显示明显白细胞和中性粒细胞升高,强烈支持细菌感染",
+                        "胸部CT显示大叶性肺炎表现,符合肺炎链球菌感染特征",
+                        "患者为老年人,有高血压基础病,感染风险较高"
+                    ],
+                    diagnosis: [
+                        { name: "社区获得性肺炎(大叶性肺炎)", confidence: 95 },
+                        { name: "急性支气管炎", confidence: 20 },
+                        { name: "肺结核", confidence: 10 }
+                    ],
+                    featureImportance: {
+                        features: ["高热", "铁锈色痰", "胸痛", "白细胞显著升高", "肺部实变", "老年患者"],
+                        gradients: [0.9, 0.8, 0.7, 0.95, 0.85, 0.6]
+                    },
+                    useAntibiotic: true,
+                    antibioticStandard: "根据指南,社区获得性肺炎需立即使用抗生素治疗。首选β-内酰胺类联合大环内酯类,或呼吸喹诺酮类。",
+                    antibioticPrimary: "头孢曲松 2g 静脉滴注,每日一次 + 阿奇霉素 500mg 口服,每日一次",
+                    antibioticReasoning: "患者临床表现和影像学检查均支持重症社区获得性肺炎诊断,需要立即使用强效抗生素治疗,并考虑住院治疗。"
+                }
+            },
+            case004: {
+                id: "case004",
+                patientId: "PT2023004",
+                gender: "女",
+                age: "25岁",
+                visitDate: "2023-10-22",
+                chiefComplaint: "咽痛、发热1天",
+                presentIllness: "患者1天前开始咽痛,吞咽时加重,伴有发热,体温最高38.8℃,无咳嗽、咳痰。自行服用退热药后体温可暂时下降。",
+                personalHistory: "无特殊病史。教师职业,近期接触过感冒学生。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 38.5℃,P 92次/分,R 18次/分,BP 115/75mmHg。咽部明显充血,扁桃体II度肿大,表面有白色脓点。双侧颌下淋巴结肿大、压痛。",
+                labTests: "血常规:WBC 13.2×10^9/L,N 82%。快速链球菌检测:阳性。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者表现为咽痛、发热,扁桃体有脓点,提示细菌性扁桃体炎",
+                        "血常规显示白细胞和中性粒细胞升高,支持细菌感染",
+                        "快速链球菌检测阳性,确诊A组链球菌感染",
+                        "患者为教师,接触感冒学生,感染风险较高"
+                    ],
+                    diagnosis: [
+                        { name: "急性化脓性扁桃体炎", confidence: 90 },
+                        { name: "传染性单核细胞增多症", confidence: 30 },
+                        { name: "病毒性咽炎", confidence: 15 }
+                    ],
+                    featureImportance: {
+                        features: ["咽痛", "发热", "扁桃体脓点", "白细胞升高", "链球菌阳性", "颌下淋巴结肿大"],
+                        gradients: [0.8, 0.7, 0.9, 0.8, 0.95, 0.6]
+                    },
+                    useAntibiotic: true,
+                    antibioticStandard: "根据指南,A组链球菌性扁桃体炎需使用抗生素治疗,首选青霉素类。",
+                    antibioticPrimary: "青霉素V钾 500mg 口服,每日3次,疗程10天",
+                    antibioticReasoning: "患者有明确的A组链球菌感染证据,需要使用抗生素治疗以预防并发症(如风湿热、肾小球肾炎)。"
+                }
+            },
+            case005: {
+                id: "case005",
+                patientId: "PT2023005",
+                gender: "男",
+                age: "55岁",
+                visitDate: "2023-10-25",
+                chiefComplaint: "咳嗽、气促1周",
+                presentIllness: "患者1周前开始咳嗽,干咳为主,伴有活动后气促,无发热、胸痛。症状逐渐加重,轻微活动即感气促。",
+                personalHistory: "有COPD病史8年,长期吸烟,每天20支。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 36.9℃,P 88次/分,R 22次/分,BP 130/80mmHg。双肺呼吸音低,可闻及散在哮鸣音。桶状胸。",
+                labTests: "血常规:WBC 8.5×10^9/L,N 70%。胸部X线:肺气肿表现,无浸润影。肺功能:FEV1/FVC 55%。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者表现为咳嗽、气促,无发热,提示非感染性呼吸道疾病",
+                        "有COPD病史和长期吸烟史,肺功能检查证实气流受限",
+                        "血常规正常,无感染证据",
+                        "考虑为COPD急性加重"
+                    ],
+                    diagnosis: [
+                        { name: "COPD急性加重", confidence: 85 },
+                        { name: "支气管哮喘急性发作", confidence: 40 },
+                        { name: "社区获得性肺炎", confidence: 20 }
+                    ],
+                    featureImportance: {
+                        features: ["气促", "干咳", "无发热", "COPD病史", "肺功能异常", "哮鸣音"],
+                        gradients: [0.8, 0.6, 0.7, 0.9, 0.85, 0.7]
+                    },
+                    useAntibiotic: false,
+                    antibioticStandard: "根据指南,COPD急性加重无脓痰和感染证据时,不建议常规使用抗生素。",
+                    antibioticPrimary: "",
+                    antibioticReasoning: "患者无发热,血常规正常,无脓痰,不符合抗生素使用指征。治疗重点应为支气管扩张剂和糖皮质激素。"
+                }
+            },
+            case006: {
+                id: "case006",
+                patientId: "PT2023006",
+                gender: "女",
+                age: "28岁",
+                visitDate: "2023-10-28",
+                chiefComplaint: "咳嗽、咽痛、声嘶3天",
+                presentIllness: "患者3天前开始出现咳嗽,咽痛,声音嘶哑,无发热,无咳痰。自服润喉糖效果不佳。",
+                personalHistory: "无吸烟史,偶饮酒。幼儿园教师。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 36.9℃,P 76次/分,R 16次/分,BP 110/70mmHg。咽部轻度充血,声带充血水肿。双肺呼吸音清,未闻及干湿啰音。",
+                labTests: "血常规:WBC 8.1×10^9/L,N 68%。喉镜:急性喉炎表现。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者表现为咳嗽、声嘶,喉镜检查证实声带充血水肿",
+                        "血常规正常,无感染证据",
+                        "考虑用声过度合并病毒感染的急性喉炎",
+                        "患者为教师职业,用声较多,是易感因素"
+                    ],
+                    diagnosis: [
+                        { name: "急性喉炎", confidence: 85 },
+                        { name: "急性上呼吸道感染", confidence: 60 },
+                        { name: "声带息肉", confidence: 20 }
+                    ],
+                    featureImportance: {
+                        features: ["声嘶", "咳嗽", "无发热", "血常规正常", "声带充血", "教师职业"],
+                        gradients: [0.9, 0.6, 0.7, 0.8, 0.85, 0.5]
+                    },
+                    useAntibiotic: false,
+                    antibioticStandard: "根据指南,单纯急性喉炎无细菌感染证据时不建议使用抗生素。",
+                    antibioticPrimary: "",
+                    antibioticReasoning: "患者无发热,血常规正常,临床表现符合病毒性喉炎,不建议使用抗生素。建议声休、雾化吸入治疗。"
+                }
+            },
+            case007: {
+                id: "case007",
+                patientId: "PT2023007",
+                gender: "男",
+                age: "72岁",
+                visitDate: "2023-11-02",
+                chiefComplaint: "发热、咳嗽、呼吸困难2天",
+                presentIllness: "患者2天前开始发热,体温最高38.8℃,伴有咳嗽、咳黄脓痰,活动后气促。有糖尿病、冠心病史。",
+                personalHistory: "吸烟40年,已戒烟5年。有糖尿病、冠心病史。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 38.5℃,P 110次/分,R 26次/分,BP 135/80mmHg。口唇轻度发绀,双肺可闻及广泛湿性啰音。",
+                labTests: "血常规:WBC 14.2×10^9/L,N 88%。CRP 85mg/L。胸部CT:双下肺炎症浸润影。动脉血气:PaO2 65mmHg。",
+                aiRecommendation: {
+                    thinking: [
+                        "老年患者,表现为发热、咳嗽、呼吸困难,病情较重",
+                        "血常规和CRP明显升高,支持严重细菌感染",
+                        "胸部CT显示肺炎,动脉血气提示低氧血症",
+                        "有基础疾病,感染风险高,需住院治疗"
+                    ],
+                    diagnosis: [
+                        { name: "重症社区获得性肺炎", confidence: 92 },
+                        { name: "I型呼吸衰竭", confidence: 80 },
+                        { name: "急性支气管炎", confidence: 15 }
+                    ],
+                    featureImportance: {
+                        features: ["呼吸困难", "发热", "低氧血症", "白细胞升高", "肺部浸润影", "老年基础病"],
+                        gradients: [0.95, 0.8, 0.9, 0.85, 0.88, 0.75]
+                    },
+                    useAntibiotic: true,
+                    antibioticStandard: "根据指南,重症肺炎需立即静脉使用广谱抗生素,覆盖典型和非典型病原体。",
+                    antibioticPrimary: "左氧氟沙星 500mg 静脉滴注,每日一次",
+                    antibioticReasoning: "患者为重症肺炎伴呼吸衰竭,需要强效抗生素覆盖,同时考虑患者基础疾病多,感染严重,建议住院治疗。"
+                }
+            },
+            case008: {
+                id: "case008",
+                patientId: "PT2023008",
+                gender: "女",
+                age: "19岁",
+                visitDate: "2023-11-05",
+                chiefComplaint: "发热、咽痛、全身皮疹1天",
+                presentIllness: "患者1天前开始发热,咽痛,随后出现全身红色皮疹,无痒感。伴有头痛、乏力。",
+                personalHistory: "大学生,宿舍有同学患类似疾病。无吸烟饮酒史。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 38.9℃,P 95次/分,R 20次/分,BP 115/75mmHg。咽部充血,扁桃体II度肿大,有白色渗出物。全身弥漫性红色斑丘疹。颈部淋巴结肿大。",
+                labTests: "血常规:WBC 13.5×10^9/L,异型淋巴细胞15%。快速链球菌检测:阴性。肝功能:ALT 85U/L。",
+                aiRecommendation: {
+                    thinking: [
+                        "青少年患者,急性发热、咽痛、皮疹三联征",
+                        "血常规显示异型淋巴细胞升高,提示病毒感染",
+                        "链球菌检测阴性,肝功能异常",
+                        "综合考虑传染性单核细胞增多症可能性大"
+                    ],
+                    diagnosis: [
+                        { name: "传染性单核细胞增多症", confidence: 88 },
+                        { name: "急性扁桃体炎", confidence: 50 },
+                        { name: "药物疹", confidence: 10 }
+                    ],
+                    featureImportance: {
+                        features: ["发热", "咽痛", "皮疹", "异型淋巴细胞", "肝功能异常", "淋巴结肿大"],
+                        gradients: [0.8, 0.7, 0.75, 0.9, 0.7, 0.65]
+                    },
+                    useAntibiotic: false,
+                    antibioticStandard: "传染性单核细胞增多症为病毒感染,不建议使用抗生素,尤其避免使用阿莫西林。",
+                    antibioticPrimary: "",
+                    antibioticReasoning: "患者临床表现和实验室检查支持传染性单核细胞增多症诊断,为EB病毒感染,使用抗生素无效且可能引起皮疹加重。"
+                }
+            },
+            case009: {
+                id: "case009",
+                patientId: "PT2023009",
+                gender: "男",
+                age: "35岁",
+                visitDate: "2023-11-08",
+                chiefComplaint: "鼻塞、流脓涕、头痛1周",
+                presentIllness: "患者1周前感冒后出现鼻塞、流清涕,近3天转为黄脓涕,伴有前额部疼痛,晨起加重。无发热、咳嗽。",
+                personalHistory: "有过敏性鼻炎史5年。无吸烟史。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 36.8℃,P 78次/分,R 16次/分,BP 120/80mmHg。鼻黏膜充血水肿,中鼻道可见脓性分泌物。额窦区压痛阳性。",
+                labTests: "血常规:WBC 11.2×10^9/L,N 78%。鼻窦CT:双侧额窦、筛窦炎症,窦腔内积液。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者表现为鼻塞、流脓涕、头痛,符合急性鼻窦炎表现",
+                        "鼻窦CT证实鼻窦炎症,血常规支持细菌感染",
+                        "有过敏性鼻炎基础病史,易发生鼻窦炎",
+                        "考虑细菌性鼻窦炎"
+                    ],
+                    diagnosis: [
+                        { name: "急性细菌性鼻窦炎", confidence: 90 },
+                        { name: "过敏性鼻炎急性发作", confidence: 40 },
+                        { name: "上呼吸道感染", confidence: 30 }
+                    ],
+                    featureImportance: {
+                        features: ["流脓涕", "头痛", "鼻窦压痛", "白细胞升高", "CT异常", "过敏性鼻炎史"],
+                        gradients: [0.85, 0.7, 0.75, 0.8, 0.9, 0.5]
+                    },
+                    useAntibiotic: true,
+                    antibioticStandard: "根据指南,急性细菌性鼻窦炎伴有脓涕和影像学证据时建议使用抗生素。",
+                    antibioticPrimary: "阿莫西林克拉维酸钾 625mg 口服,每8小时一次,疗程10-14天",
+                    antibioticReasoning: "患者有明确的细菌感染证据(脓涕、头痛、白细胞升高、CT异常),需要使用抗生素治疗。同时建议鼻腔冲洗和鼻用糖皮质激素。"
+                }
+            },
+            case010: {
+                id: "case010",
+                patientId: "PT2023010",
+                gender: "女",
+                age: "42岁",
+                visitDate: "2023-11-12",
+                chiefComplaint: "咳嗽、喘息2天",
+                presentIllness: "患者2天前接触冷空气后出现咳嗽,伴有喘息,夜间加重,影响睡眠。无发热、咳痰。有类似发作史。",
+                personalHistory: "有支气管哮喘史10年,间断使用吸入剂。无吸烟史。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 36.7℃,P 90次/分,R 22次/分,BP 118/76mmHg。双肺可闻及广泛哮鸣音,呼气相延长。无湿啰音。",
+                labTests: "血常规:WBC 7.8×10^9/L,N 65%,EOS 8%。肺功能:FEV1占预计值65%。胸部X线:双肺过度充气。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者表现为咳嗽、喘息,双肺哮鸣音,符合哮喘急性发作",
+                        "血常规嗜酸性粒细胞轻度升高,肺功能显示气流受限",
+                        "无发热、脓痰等感染证据",
+                        "考虑支气管哮喘急性发作"
+                    ],
+                    diagnosis: [
+                        { name: "支气管哮喘急性发作", confidence: 90 },
+                        { name: "急性支气管炎", confidence: 30 },
+                        { name: "心源性哮喘", confidence: 15 }
+                    ],
+                    featureImportance: {
+                        features: ["喘息", "咳嗽", "哮鸣音", "肺功能异常", "嗜酸细胞升高", "哮喘病史"],
+                        gradients: [0.9, 0.6, 0.85, 0.8, 0.6, 0.75]
+                    },
+                    useAntibiotic: false,
+                    antibioticStandard: "哮喘急性发作无感染证据时,不建议使用抗生素。",
+                    antibioticPrimary: "",
+                    antibioticReasoning: "患者无发热,血常规正常,无脓痰,不符合抗生素使用指征。治疗重点应为支气管扩张剂和吸入糖皮质激素。"
+                }
+            },
+            case011: {
+                id: "case011",
+                patientId: "PT2023011",
+                gender: "男",
+                age: "50岁",
+                visitDate: "2023-11-15",
+                chiefComplaint: "发热、咳嗽、咳大量脓痰5天",
+                presentIllness: "患者5天前开始发热,咳嗽,咳大量黄绿色脓痰,有臭味。无胸痛、咯血。有支气管扩张病史。",
+                personalHistory: "吸烟20年,已戒烟2年。有支气管扩张病史5年。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 38.3℃,P 96次/分,R 20次/分,BP 128/82mmHg。双肺底可闻及固定性湿啰音。杵状指。",
+                labTests: "血常规:WBC 13.8×10^9/L,N 86%。痰培养:铜绿假单胞菌生长。胸部CT:双下肺支气管扩张伴感染。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者有支气管扩张基础病,表现为发热、大量脓痰",
+                        "痰培养发现铜绿假单胞菌,血常规支持细菌感染",
+                        "胸部CT证实支气管扩张伴感染",
+                        "考虑支气管扩张症急性加重"
+                    ],
+                    diagnosis: [
+                        { name: "支气管扩张症急性加重", confidence: 95 },
+                        { name: "社区获得性肺炎", confidence: 60 },
+                        { name: "肺脓肿", confidence: 30 }
+                    ],
+                    featureImportance: {
+                        features: ["大量脓痰", "发热", "支气管扩张史", "痰培养阳性", "白细胞升高", "固定湿啰音"],
+                        gradients: [0.9, 0.8, 0.85, 0.95, 0.8, 0.7]
+                    },
+                    useAntibiotic: true,
+                    antibioticStandard: "支气管扩张急性加重伴有脓痰和感染证据时需使用抗生素,根据痰培养结果选择敏感药物。",
+                    antibioticPrimary: "头孢他啶 2g 静脉滴注,每8小时一次",
+                    antibioticReasoning: "患者痰培养为铜绿假单胞菌,需要针对性使用抗假单胞菌抗生素,疗程通常需要10-14天。"
+                }
+            },
+            case012: {
+                id: "case012",
+                patientId: "PT2023012",
+                gender: "女",
+                age: "26岁",
+                visitDate: "2023-11-18",
+                chiefComplaint: "咽痛、咳嗽、低热3天",
+                presentIllness: "患者3天前开始咽痛,干咳,低热37.8℃左右,伴有肌肉酸痛、乏力。同事中有类似症状患者。",
+                personalHistory: "办公室职员,无吸烟饮酒史。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 37.6℃,P 82次/分,R 18次/分,BP 112/74mmHg。咽部充血,扁桃体无肿大。双肺呼吸音清。",
+                labTests: "血常规:WBC 6.8×10^9/L,N 62%,L 30%。流感快速检测:甲型流感阳性。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者表现为咽痛、咳嗽、低热等流感样症状",
+                        "流感快速检测阳性,确诊甲型流感",
+                        "血常规正常,淋巴细胞比例稍高",
+                        "考虑季节性流感"
+                    ],
+                    diagnosis: [
+                        { name: "甲型流感", confidence: 92 },
+                        { name: "急性上呼吸道感染", confidence: 70 },
+                        { name: "急性咽炎", confidence: 50 }
+                    ],
+                    featureImportance: {
+                        features: ["咽痛", "低热", "肌肉酸痛", "流感检测阳性", "血常规正常", "流行病学史"],
+                        gradients: [0.7, 0.6, 0.65, 0.95, 0.7, 0.6]
+                    },
+                    useAntibiotic: false,
+                    antibioticStandard: "单纯流感病毒感染不建议使用抗生素,除非有继发细菌感染证据。",
+                    antibioticPrimary: "",
+                    antibioticReasoning: "患者确诊甲型流感,无细菌感染证据,不建议使用抗生素。建议抗病毒治疗(奥司他韦)和对症支持治疗。"
+                }
+            },
+            case013: {
+                id: "case013",
+                patientId: "PT2023013",
+                gender: "男",
+                age: "60岁",
+                visitDate: "2023-11-22",
+                chiefComplaint: "咳嗽、咳痰、气促1月",
+                presentIllness: "患者1月来反复咳嗽,咳白色泡沫痰,活动后气促,无发热、盗汗。症状逐渐加重。有肺结核病史。",
+                personalHistory: "吸烟30年,每天20支。20年前曾患肺结核。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 36.9℃,P 88次/分,R 24次/分,BP 130/85mmHg。双肺呼吸音粗,可闻及散在干啰音。消瘦貌。",
+                labTests: "血常规:WBC 9.2×10^9/L,N 72%。痰抗酸染色:阳性。胸部CT:右上肺纤维空洞灶,周围新发浸润影。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者有肺结核病史,近期出现呼吸道症状加重",
+                        "痰抗酸染色阳性,提示结核菌感染",
+                        "胸部CT显示陈旧结核灶周围新发浸润",
+                        "考虑肺结核复发"
+                    ],
+                    diagnosis: [
+                        { name: "肺结核复发", confidence: 90 },
+                        { name: "慢性支气管炎急性加重", confidence: 40 },
+                        { name: "肺部真菌感染", confidence: 20 }
+                    ],
+                    featureImportance: {
+                        features: ["慢性咳嗽", "消瘦", "结核病史", "痰抗酸阳性", "CT空洞浸润", "无发热"],
+                        gradients: [0.7, 0.6, 0.8, 0.95, 0.85, 0.5]
+                    },
+                    useAntibiotic: true,
+                    antibioticStandard: "肺结核需使用抗结核药物治疗,遵循早期、联合、规律、全程、适量原则。",
+                    antibioticPrimary: "异烟肼+利福平+吡嗪酰胺+乙胺丁醇 联合治疗",
+                    antibioticReasoning: "患者痰抗酸染色阳性,确诊活动性肺结核,需要立即开始标准抗结核治疗,疗程至少6个月。需注意药物不良反应监测。"
+                }
+            },
+            case014: {
+                id: "case014",
+                patientId: "PT2023014",
+                gender: "女",
+                age: "33岁",
+                visitDate: "2023-11-25",
+                chiefComplaint: "咽痛、吞咽困难1天",
+                presentIllness: "患者1天前开始咽痛,迅速加重,出现吞咽困难、流涎。无咳嗽、发热。有反复扁桃体炎史。",
+                personalHistory: "无吸烟饮酒史。有慢性扁桃体炎史。",
+                allergyHistory: "青霉素过敏",
+                physicalExam: "T 37.2℃,P 92次/分,R 20次/分,BP 118/76mmHg。咽部充血,左侧扁桃体周围红肿明显,悬雍垂偏向右侧。张口受限。",
+                labTests: "血常规:WBC 12.8×10^9/L,N 85%。颈部CT:左侧扁桃体周围脓肿形成。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者表现为急性咽痛、吞咽困难、流涎",
+                        "体检发现扁桃体周围红肿,悬雍垂偏移",
+                        "CT证实扁桃体周围脓肿,血常规支持细菌感染",
+                        "考虑扁桃体周围脓肿"
+                    ],
+                    diagnosis: [
+                        { name: "扁桃体周围脓肿", confidence: 95 },
+                        { name: "急性化脓性扁桃体炎", confidence: 70 },
+                        { name: "咽旁间隙感染", confidence: 40 }
+                    ],
+                    featureImportance: {
+                        features: ["吞咽困难", "流涎", "悬雍垂偏移", "白细胞升高", "CT脓肿", "张口受限"],
+                        gradients: [0.9, 0.7, 0.85, 0.8, 0.95, 0.75]
+                    },
+                    useAntibiotic: true,
+                    antibioticStandard: "扁桃体周围脓肿需要脓肿引流联合抗生素治疗,覆盖需氧和厌氧菌。",
+                    antibioticPrimary: "克林霉素 600mg 静脉滴注,每8小时一次",
+                    antibioticReasoning: "患者青霉素过敏,选择克林霉素覆盖链球菌和厌氧菌。需要急诊行脓肿切开引流术,同时静脉抗生素治疗。"
+                }
+            },
+            case015: {
+                id: "case015",
+                patientId: "PT2023015",
+                gender: "男",
+                age: "47岁",
+                visitDate: "2023-11-28",
+                chiefComplaint: "咳嗽、发热、胸痛3天",
+                presentIllness: "患者3天前受凉后出现咳嗽、发热,右侧胸痛,深呼吸时加重。咳少量白痰。自行服用感冒药无效。",
+                personalHistory: "建筑工人,长期户外工作。吸烟25年,每天15支。",
+                allergyHistory: "无药物过敏史",
+                physicalExam: "T 38.1℃,P 94次/分,R 22次/分,BP 126/82mmHg。右下肺叩诊浊音,呼吸音减弱,可闻及胸膜摩擦音。",
+                labTests: "血常规:WBC 11.5×10^9/L,N 82%。胸部X线:右侧肋膈角变钝,提示胸腔积液。",
+                aiRecommendation: {
+                    thinking: [
+                        "患者表现为发热、咳嗽、胸痛,胸痛与呼吸相关",
+                        "胸部X线显示胸腔积液,体检有胸膜摩擦音",
+                        "血常规支持细菌感染",
+                        "考虑社区获得性肺炎合并胸腔积液"
+                    ],
+                    diagnosis: [
+                        { name: "社区获得性肺炎伴胸腔积液", confidence: 88 },
+                        { name: "结核性胸膜炎", confidence: 35 },
+                        { name: "急性支气管炎", confidence: 25 }
+                    ],
+                    featureImportance: {
+                        features: ["胸痛", "发热", "胸腔积液", "白细胞升高", "胸膜摩擦音", "吸烟史"],
+                        gradients: [0.85, 0.7, 0.9, 0.8, 0.7, 0.5]
+                    },
+                    useAntibiotic: true,
+                    antibioticStandard: "肺炎伴胸腔积液需使用抗生素治疗,必要时行胸腔穿刺检查。",
+                    antibioticPrimary: "左氧氟沙星 500mg 口服,每日一次",
+                    antibioticReasoning: "患者有明确的社区获得性肺炎证据伴胸腔积液,需要抗生素治疗。建议进一步行胸腔超声评估积液量,必要时胸腔穿刺。"
+                }
+            }
+        };
+
+        // ========================================
+        // EmailJS配置
+        // ========================================
+        const EMAILJS_CONFIG = {
+            serviceId: 'service_sjev6dm',
+            templateId: 'template_ldiu064',
+            publicKey: 'GbpZKeaCKEnzJeoAo'
+        };
+        (function() { emailjs.init(EMAILJS_CONFIG.publicKey); })();
+
+        // ========================================
+        // 全局变量
+        // ========================================
+        let igChartInstance = null;
+        let igChartInstanceModal = null;
+        let experimentConfig = null;
+        let expData = null;
+        let curCase = 0, completedCases = 0;
+        let allCases = [];
+        let currentDisplayMode = 'sidebar';
+        let currentSystemIndex = -1; // 跟踪当前系统
+
+        // ========================================
+        // 第一步：姓名输入
+        // ========================================
+        document.getElementById('participantInput').addEventListener('input', function() {
+            const value = this.value.trim();
+            const errorText = document.getElementById('errorText');
+            const startBtn = document.getElementById('startBtn');
+
+            if (value.length < 2) {
+                errorText.style.display = 'block';
+                startBtn.disabled = true;
+            } else {
+                errorText.style.display = 'none';
+                startBtn.disabled = false;
+            }
+        });
+
+        function goToDemographics() {
+            const input = document.getElementById('participantInput');
+            const participantName = input.value.trim();
+
+            if (!participantName || participantName.length < 2) {
+                document.getElementById('errorText').style.display = 'block';
+                return;
+            }
+
+            // 保存姓名并显示个人信息表单
+            localStorage.setItem('participantName', participantName);
+            document.getElementById('welcomeOverlay').style.display = 'none';
+            document.getElementById('demographicsOverlay').style.display = 'flex';
+        }
+
+        // ========================================
+        // 第二步：提交个人信息
+        // ========================================
+        function submitDemographics() {
+            // 验证所有必填项
+            const gender = document.querySelector('input[name="gender"]:checked');
+            const age = document.getElementById('age').value.trim();
+            const education = document.querySelector('input[name="education"]:checked');
+            const province = document.getElementById('province').value.trim();
+            const workYears = document.getElementById('workYears').value.trim();
+            const title = document.querySelector('input[name="title"]:checked');
+            const facility = document.querySelector('input[name="facility"]:checked');
+            const dailyPatients = document.getElementById('dailyPatients').value.trim();
+            const aiKnowledge = document.querySelector('input[name="aiKnowledge"]:checked');
+            const aiExperience = document.querySelector('input[name="aiExperience"]:checked');
+
+            if (!gender || !age || !education || !province || !workYears || !title ||
+                !facility || !dailyPatients || !aiKnowledge || !aiExperience) {
+                alert('请完整填写所有必填项');
+                return;
+            }
+
+            // 保存个人信息
+            const demographics = {
+                gender: gender.value,
+                age: parseInt(age),
+                education: education.value,
+                province: province,
+                workYears: parseInt(workYears),
+                title: title.value,
+                facility: facility.value,
+                dailyPatients: parseInt(dailyPatients),
+                aiKnowledge: aiKnowledge.value,
+                aiExperience: aiExperience.value
+            };
+
+            localStorage.setItem('demographics', JSON.stringify(demographics));
+
+            // 关闭个人信息表单,开始实验
+            document.getElementById('demographicsOverlay').style.display = 'none';
+            startExperiment();
+        }
+
+        // ========================================
+        // 第三步：开始实验
+        // ========================================
+        function startExperiment() {
+            const participantName = localStorage.getItem('participantName');
+            const timestamp = new Date().toISOString();
+
+            experimentConfig = generateExperimentConfig(participantName, timestamp);
+            localStorage.setItem('participantId', experimentConfig.participantId);
+
+            // 控制台输出实验配置信息
+            console.log('='.repeat(60));
+            console.log('实验配置信息 - 分辨率VI部分析因设计');
+            console.log('='.repeat(60));
+            console.log('参与者姓名:', participantName);
+            console.log('参与者ID:', experimentConfig.participantId);
+            console.log('时间戳:', timestamp);
+            console.log('-'.repeat(60));
+            console.log('实验设计:', experimentConfig.experimentDesign);
+            console.log('-'.repeat(60));
+            console.log('系统配置详情:');
+            experimentConfig.systems.forEach((s, idx) => {
+                console.log(`\n系统${idx + 1}:`);
+                console.log('  - 设计矩阵编号:', s.systemIndex);
+                console.log('  - 激活特征:', s.activeFeatures.join(', ') || '基础AI');
+                console.log('  - 特征配置:', s.features);
+                console.log('  - 分配病历:', s.assignedCases);
+                console.log('  - 设计信息:', s.designInfo);
+            });
+            console.log('='.repeat(60));
+
+            document.getElementById('mainContent').style.display = 'block';
+            initializeExperiment();
+        }
+
+        function generateRandomSystems() {
+            const all = Array.from({length: 32}, (_, i) => i);
+            for (let i = all.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [all[i], all[j]] = [all[j], all[i]];
+            }
+            return all.slice(0, 3);
+        }
+
+        function generateExperimentConfig(participantName, timestamp) {
+            const designMatrix = [];
+
+            for (let i = 0; i < 32; i++) {
+                const row = {
+                    A: (i >> 4) & 1,
+                    B: (i >> 3) & 1,
+                    C: (i >> 2) & 1,
+                    D: (i >> 1) & 1,
+                    E: i & 1,
+                };
+                row.F = row.A ^ row.B ^ row.C ^ row.D ^ row.E;
+                designMatrix.push(row);
+            }
+
+            const systemIndices = generateRandomSystems();
+            const allCaseIds = Object.keys(CASE_DATABASE);
+
+            const systems = systemIndices.map((sysIdx, systemNum) => {
+                const shuffled = [...allCaseIds].sort(() => Math.random() - 0.5).slice(0, 3);
+
+                const featureNames = {
+                    A: '侧边栏',
+                    B: '思维链',
+                    C: '置信度',
+                    D: '特征重要性',
+                    E: '分步药物',
+                    F: '自动提取'
+                };
+
+                const features = designMatrix[sysIdx];
+                const activeFeatures = Object.entries(features)
+                    .filter(([key, val]) => val === 1)
+                    .map(([key]) => featureNames[key]);
+
+                return {
+                    systemIndex: sysIdx + 1,
+                    systemName: `系统${systemNum + 1}`,
+                    features: features,
+                    activeFeatures: activeFeatures,
+                    assignedCases: shuffled,
+                    designInfo: {
+                        resolution: 'VI',
+                        generator: 'F=ABCDE',
+                        totalRuns: 32,
+                        selectedRun: sysIdx + 1
+                    }
+                };
+            });
+
+            return {
+                participantId: participantName + '_' + Date.now(),
+                participantName: participantName,
+                timestamp: timestamp,
+                experimentDesign: {
+                    type: '2^(6-1)部分析因设计',
+                    resolution: 'VI',
+                    factors: 6,
+                    runs: 32,
+                    generator: 'F=ABCDE',
+                    description: '分辨率VI确保主效应和二因子交互可清晰估计'
+                },
+                systems: systems
+            };
+        }
+
+        function initializeExperiment() {
+            allCases = [];
+
+            experimentConfig.systems.forEach((system, sysIdx) => {
+                system.assignedCases.forEach((caseId, caseIdx) => {
+                    const caseData = CASE_DATABASE[caseId];
+                    if (!caseData) {
+                        console.error(`病历 ${caseId} 在数据库中未找到`);
+                        return;
+                    }
+
+                    allCases.push({
+                        ...caseData,
+                        systemIndex: sysIdx,
+                        systemOrder: sysIdx,
+                        systemName: system.systemName,
+                        caseName: `${system.systemName}-案例${caseIdx + 1}`,
+                        features: system.features,
+                        activeFeatures: system.activeFeatures
+                    });
+                });
+            });
+
+            document.getElementById('experimentTag').textContent =
+                `参与者:${experimentConfig.participantId}`;
+
+            // 初始化实验数据
+            const demographics = JSON.parse(localStorage.getItem('demographics') || '{}');
+            expData = {
+                participantId: experimentConfig.participantId,
+                participantName: experimentConfig.participantName,
+                timestamp: experimentConfig.timestamp,
+                demographics: demographics,
+                experimentDesign: experimentConfig.experimentDesign,
+                systems: experimentConfig.systems.map(s => ({
+                    systemIndex: s.systemIndex,
+                    systemName: s.systemName,
+                    features: s.features,
+                    activeFeatures: s.activeFeatures,
+                    designInfo: s.designInfo,
+                    survey: null  // 将在系统完成后填充
+                })),
+                startTime: new Date().toISOString(),
+                cases: [],
+                endTime: null
+            };
+
+            // 创建案例导航
+            const nav = document.getElementById('caseNavigationContent');
+            nav.innerHTML = '';
+
+            experimentConfig.systems.forEach((system, sysIdx) => {
+                const group = document.createElement('div');
+                group.className = 'system-group';
+
+                const groupTitle = document.createElement('div');
+                groupTitle.className = 'system-group-title';
+                const featureText = system.activeFeatures.length > 0
+                    ? system.activeFeatures.join(', ')
+                    : '基础AI';
+                groupTitle.textContent = `${system.systemName} [配置#${system.systemIndex}] - ${featureText}`;
+                group.appendChild(groupTitle);
+
+                const btns = document.createElement('div');
+                btns.className = 'case-nav-btns';
+
+                system.assignedCases.forEach((caseId, caseIdx) => {
+                    const globalIdx = sysIdx * 3 + caseIdx;
+                    const btn = document.createElement('button');
+                    btn.className = 'case-nav-btn';
+                    btn.id = `nav-btn-${globalIdx}`;
+                    btn.textContent = `案例${caseIdx + 1}`;
+                    btn.onclick = () => switchCase(globalIdx);
+                    if (globalIdx !== 0) btn.disabled = true;
+                    btns.appendChild(btn);
+                });
+
+                group.appendChild(btns);
+                nav.appendChild(group);
+            });
+
+            loadCase(0);
+            updateProgress();
+        }
+
+        function updateProgress() {
+            const totalCases = 9;
+            const percentage = Math.round((completedCases / totalCases) * 100);
+
+            const progressBarFill = document.getElementById('progressBarFill');
+            const progressBarText = document.getElementById('progressBarText');
+            if (progressBarFill) {
+                progressBarFill.style.width = `${percentage}%`;
+            }
+            if (progressBarText) {
+                progressBarText.textContent = `${percentage}%`;
+            }
+
+            const completedCount = document.getElementById('completedCount');
+            if (completedCount) {
+                completedCount.textContent = `${completedCases}/9`;
+            }
+
+            const currentCaseElement = document.getElementById('currentCase');
+            if (currentCaseElement) {
+                const systemNum = Math.floor(curCase / 3) + 1;
+                const caseNum = (curCase % 3) + 1;
+                currentCaseElement.textContent = `系统${systemNum}-案例${caseNum}`;
+            }
+
+            for (let i = 0; i < 9; i++) {
+                const btn = document.getElementById(`nav-btn-${i}`);
+                if (btn) {
+                    btn.classList.remove('completed', 'current');
+                    if (i < completedCases) {
+                        btn.classList.add('completed');
+                    } else if (i === curCase) {
+                        btn.classList.add('current');
+                    }
+                }
+            }
+        }
+
+        function switchCase(i) {
+            curCase = i;
+
+            document.getElementById('aiSidebar').classList.remove('active');
+            document.getElementById('aiModalOverlay').classList.remove('active');
+
+            document.getElementById('aiModalOverlay').classList.remove('minimized');
+            document.getElementById('aiModal').classList.remove('minimized');
+            document.getElementById('minimizeIcon').textContent = '−';
+
+            loadCase(i);
+            updateProgress();
+        }
+
+        function formatMedicalRecord(c) {
+            return `患者ID: ${c.patientId}
+性别: ${c.gender}
+年龄: ${c.age}
+就诊日期: ${c.visitDate}
+
+【主诉】
+${c.chiefComplaint}
+
+【现病史】
+${c.presentIllness}
+
+【个人史】
+${c.personalHistory}
+
+【药物过敏史】
+${c.allergyHistory}
+
+【体格检查】
+${c.physicalExam}
+
+【辅助检查】
+${c.labTests}`;
+        }
+
+        function loadCase(i) {
+            const c = allCases[i];
+
+            const featureIndicator = document.getElementById('featureIndicator');
+            featureIndicator.style.display = 'inline-block';
+
+            if (c.activeFeatures.length > 0) {
+                featureIndicator.textContent = `AI增强特征: ${c.activeFeatures.join(', ')}`;
+                featureIndicator.className = 'feature-indicator';
+            } else {
+                featureIndicator.textContent = '基础AI(诊断+用药建议)';
+                featureIndicator.className = 'feature-indicator basic';
+            }
+
+            const textarea = document.getElementById('medicalRecordDisplay');
+            textarea.value = formatMedicalRecord(c);
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+
+            let cd = expData.cases.find(x => x.caseId === c.id && x.systemIndex === c.systemIndex);
+            if (!cd) {
+                cd = {
+                    caseId: c.id,
+                    caseName: c.caseName,
+                    systemIndex: c.systemIndex,
+                    systemName: c.systemName,
+                    timestamps: {}
+                };
+                expData.cases.push(cd);
+                cd.timestamps.caseStart = new Date().toISOString();
+            }
+
+            document.getElementById('initialDiag1').value = '';
+            document.getElementById('initialDiag2').value = '';
+            document.getElementById('initialDiag3').value = '';
+            document.querySelectorAll('input[name="initialAntibiotic"]').forEach(r => r.checked = false);
+            document.getElementById('initialAntibioticTypes').classList.add('hidden');
+
+            document.getElementById('finalDiag1').value = '';
+            document.getElementById('finalDiag2').value = '';
+            document.getElementById('finalDiag3').value = '';
+            document.querySelectorAll('input[name="finalAntibiotic"]').forEach(r => r.checked = false);
+            document.getElementById('finalAntibioticTypes').classList.add('hidden');
+            document.getElementById('finalAntibioticInput').value = '';
+            document.querySelectorAll('input[name="certainty"]').forEach(r => r.checked = false);
+
+            document.getElementById('initialDecisionSection').classList.remove('hidden');
+            document.getElementById('finalDecisionSection').classList.add('hidden');
+        }
+
+        document.querySelectorAll('input[name="initialAntibiotic"]').forEach(r => {
+            r.addEventListener('change', function() {
+                document.getElementById('initialAntibioticTypes').classList.toggle('hidden', this.value !== 'yes');
+            });
+        });
+
+        document.querySelectorAll('input[name="finalAntibiotic"]').forEach(r => {
+            r.addEventListener('change', function() {
+                document.getElementById('finalAntibioticTypes').classList.toggle('hidden', this.value !== 'yes');
+            });
+        });
+
+        async function submitInitialDecision() {
+            const d1 = document.getElementById('initialDiag1').value.trim();
+            const d2 = document.getElementById('initialDiag2').value.trim();
+            const d3 = document.getElementById('initialDiag3').value.trim();
+            const ab = document.querySelector('input[name="initialAntibiotic"]:checked');
+
+            if (!d1 || !d2 || !d3) {
+                alert('请填写所有诊断');
+                return;
+            }
+            if (!ab) {
+                alert('请选择是否使用抗生素');
+                return;
+            }
+
+            const useAb = ab.value === 'yes';
+            let abs = '';
+            if (useAb) {
+                abs = document.getElementById('initialAntibioticInput').value.trim();
+                if (!abs) {
+                    alert('请填写抗生素种类');
+                    return;
+                }
+            }
+
+            const c = allCases[curCase];
+            const cd = expData.cases.find(x => x.caseId === c.id && x.systemIndex === c.systemIndex);
+            cd.initialDecision = {
+                diagnosis: [d1, d2, d3],
+                useAntibiotic: useAb,
+                antibiotics: abs
+            };
+            cd.timestamps.initialSubmit = new Date().toISOString();
+
+            const useModal = (c.features.A === 0);
+
+            if (c.features.F === 0) {
+                if (useModal) {
+                    document.getElementById('aiModalOverlay').classList.add('active');
+                    document.getElementById('pasteSectionModal').classList.remove('hidden');
+                    document.getElementById('pasteTextareaModal').value = '';
+
+                    document.getElementById('thinkingSectionModal').classList.add('hidden');
+                    document.getElementById('diagnosisSectionModal').classList.add('hidden');
+                    document.getElementById('featureSectionModal').classList.add('hidden');
+                    document.getElementById('treatmentSectionModal').classList.add('hidden');
+                } else {
+                    document.getElementById('aiSidebar').classList.add('active');
+                    document.getElementById('pasteSectionSidebar').classList.remove('hidden');
+                    document.getElementById('pasteTextareaSidebar').value = '';
+
+                    document.getElementById('thinkingSection').classList.add('hidden');
+                    document.getElementById('diagnosisSection').classList.add('hidden');
+                    document.getElementById('featureSection').classList.add('hidden');
+                    document.getElementById('treatmentSection').classList.add('hidden');
+                }
+            } else {
+                await getAISuggestion();
+            }
+        }
+
+        async function getAISuggestion() {
+            const c = allCases[curCase];
+            const useModal = (c.features.A === 0);
+
+            if (useModal) {
+                document.getElementById('aiModalOverlay').classList.add('active');
+                document.getElementById('aiModalOverlay').classList.remove('minimized');
+                document.getElementById('aiModal').classList.remove('minimized');
+                document.getElementById('minimizeIcon').textContent = '−';
+
+                document.getElementById('pasteSectionModal').classList.add('hidden');
+                document.getElementById('thinkingSectionModal').classList.remove('hidden');
+                currentDisplayMode = 'modal';
+            } else {
+                document.getElementById('aiSidebar').classList.add('active');
+                document.getElementById('pasteSectionSidebar').classList.add('hidden');
+                document.getElementById('thinkingSection').classList.remove('hidden');
+                currentDisplayMode = 'sidebar';
+            }
+
+            const getElement = (baseName) => {
+                return document.getElementById(baseName + (useModal ? 'Modal' : ''));
+            };
+
+            if (c.features.B === 1) {
+                getElement('thinkingSection').classList.remove('hidden');
+                const thinkingProcess = getElement('thinkingProcess');
+                thinkingProcess.innerHTML = '';
+
+                for (let i = 0; i < c.aiRecommendation.thinking.length; i++) {
+                    await sleep(300);
+                    const step = document.createElement('div');
+                    step.className = 'thinking-step';
+                    step.innerHTML = `<span class="thinking-label">步骤 ${i+1}:</span> ${c.aiRecommendation.thinking[i]}`;
+                    thinkingProcess.appendChild(step);
+                }
+                await sleep(500);
+            } else {
+                getElement('thinkingSection').classList.add('hidden');
+            }
+
+            getElement('diagnosisSection').classList.remove('hidden');
+            let diagnosisHTML = '<div class="ai-conclusion"><div class="conclusion-label">🎯 AI诊断结论</div>';
+
+            c.aiRecommendation.diagnosis.forEach((d, i) => {
+                diagnosisHTML += `<div class="diagnosis-item-with-confidence">
+                    <div class="diagnosis-name">${i+1}. ${d.name}</div>`;
+
+                if (c.features.C === 1) {
+                    const confClass = d.confidence >= 80 ? 'high' : d.confidence >= 60 ? 'medium' : 'low';
+                    const confExplain = d.confidence >= 80 ? '高置信度:AI对此诊断非常确定' :
+                                       d.confidence >= 60 ? '中等置信度:AI认为此诊断较为可能' :
+                                       '低置信度:AI认为此诊断可能性较低';
+                    diagnosisHTML += `
+                        <div class="confidence-bar-container">
+                            <div class="confidence-bar">
+                                <div class="confidence-fill ${confClass}" style="width: ${d.confidence}%"></div>
+                            </div>
+                            <span class="confidence-text">${d.confidence}%</span>
+                        </div>
+                        <div class="confidence-explain">${confExplain}</div>`;
+                }
+
+                diagnosisHTML += `</div>`;
+            });
+            diagnosisHTML += '</div>';
+
+            getElement('diagnosisContent').innerHTML = diagnosisHTML;
+
+            if (c.features.D === 1) {
+                await sleep(500);
+                renderFeatureImportance(c.aiRecommendation.featureImportance, useModal);
+                getElement('featureSection').classList.remove('hidden');
+            } else {
+                getElement('featureSection').classList.add('hidden');
+            }
+
+            await sleep(500);
+            await showTreatmentRecommendation(c, useModal);
+
+            document.getElementById('initialDecisionSection').classList.add('hidden');
+            document.getElementById('finalDecisionSection').classList.remove('hidden');
+
+            const cd = expData.cases.find(x => x.caseId === c.id && x.systemIndex === c.systemIndex);
+            document.getElementById('finalDiag1').value = cd.initialDecision.diagnosis[0];
+            document.getElementById('finalDiag2').value = cd.initialDecision.diagnosis[1];
+            document.getElementById('finalDiag3').value = cd.initialDecision.diagnosis[2];
+
+            const antibioticValue = cd.initialDecision.useAntibiotic ? 'yes' : 'no';
+            document.querySelector(`input[name="finalAntibiotic"][value="${antibioticValue}"]`).checked = true;
+
+            if (cd.initialDecision.useAntibiotic) {
+                document.getElementById('finalAntibioticTypes').classList.remove('hidden');
+                document.getElementById('finalAntibioticInput').value = cd.initialDecision.antibiotics;
+            }
+        }
+
+        function renderFeatureImportance(data, useModal = false) {
+            const chartId = useModal ? 'igChartModal' : 'igChart';
+            const ctx = document.getElementById(chartId);
+
+            if (useModal && igChartInstanceModal) {
+                igChartInstanceModal.destroy();
+            } else if (!useModal && igChartInstance) {
+                igChartInstance.destroy();
+            }
+
+            const colors = data.gradients.map(val => val >= 0 ? '#27ae60' : '#e74c3c');
+
+            const chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.features,
+                    datasets: [{
+                        data: data.gradients,
+                        backgroundColor: colors,
+                        borderColor: colors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed.x;
+                                    const direction = value >= 0 ? '支持' : '不支持';
+                                    return `${direction}当前诊断: ${Math.abs(value * 100).toFixed(1)}%`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return (value * 100).toFixed(0) + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (useModal) {
+                igChartInstanceModal = chartInstance;
+            } else {
+                igChartInstance = chartInstance;
+            }
+        }
+
+        async function showTreatmentRecommendation(c, useModal = false) {
+            const rec = c.aiRecommendation;
+            const getElement = (baseName) => {
+                return document.getElementById(baseName + (useModal ? 'Modal' : ''));
+            };
+
+            let html = `
+                <div style="margin-bottom: 12px; padding: 12px; background: white; border-radius: 4px; border: 2px solid ${rec.useAntibiotic ? '#27ae60' : '#e74c3c'};">
+                    <strong>是否需要抗生素:</strong>
+                    <span style="color: ${rec.useAntibiotic ? '#27ae60' : '#e74c3c'}; font-weight: 600; font-size: 15px;">
+                        ${rec.useAntibiotic ? '✓ 建议使用' : '✗ 不建议使用'}
+                    </span>
+                </div>
+            `;
+
+            if (rec.useAntibiotic && rec.antibioticStandard) {
+                if (c.features.E === 1) {
+                    html += `
+                        <div class="antibiotic-standard">
+                            <strong>🏥 标准治疗方案:</strong>
+                            <div style="margin-top: 6px; color: #e65100;">${rec.antibioticStandard}</div>
+                        </div>
+                    `;
+
+                    getElement('treatmentContent').innerHTML = html;
+                    getElement('treatmentSection').classList.remove('hidden');
+
+                    await sleep(1500);
+                    html += '<div class="searching-indicator">🔍 正在检索基层医疗机构药品库存...</div>';
+                    getElement('treatmentContent').innerHTML = html;
+
+                    await sleep(1500);
+                    html = html.replace('<div class="searching-indicator">🔍 正在检索基层医疗机构药品库存...</div>', '');
+                    html += `
+                        <div class="antibiotic-primary">
+                            <strong>✓ 基层医疗机构可及方案:</strong>
+                            <div style="margin-top: 6px; color: #2e7d32; font-weight: 600;">${rec.antibioticPrimary}</div>
+                            <div style="margin-top: 8px; font-size: 12px; color: #059669;">该方案药物在基层医疗机构常备,可立即获取</div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="antibiotic-standard">
+                            <strong>🏥 标准治疗方案:</strong>
+                            <div style="margin-top: 6px; color: #e65100;">${rec.antibioticStandard}</div>
+                        </div>
+                    `;
+                }
+            }
+
+            html += `
+                <div style="margin-top: 16px; padding: 12px; background: #fffbea; border-radius: 4px; font-size: 13px; color: #856404; line-height: 1.6;">
+                    <strong>💡 AI推理说明:</strong><br>
+                    ${rec.antibioticReasoning}
+                </div>
+            `;
+
+            getElement('treatmentContent').innerHTML = html;
+            getElement('treatmentSection').classList.remove('hidden');
+        }
+
+        function submitFinalDecision() {
+            const d1 = document.getElementById('finalDiag1').value.trim();
+            const d2 = document.getElementById('finalDiag2').value.trim();
+            const d3 = document.getElementById('finalDiag3').value.trim();
+            const ab = document.querySelector('input[name="finalAntibiotic"]:checked');
+            const cert = document.querySelector('input[name="certainty"]:checked');
+
+            if (!d1 || !d2 || !d3 || !ab || !cert) {
+                alert('请完整填写所有信息');
+                return;
+            }
+
+            const useAb = ab.value === 'yes';
+            let abs = '';
+            if (useAb) {
+                abs = document.getElementById('finalAntibioticInput').value.trim();
+                if (!abs) {
+                    alert('请填写抗生素种类');
+                    return;
+                }
+            }
+
+            const c = allCases[curCase];
+            const cd = expData.cases.find(x => x.caseId === c.id && x.systemIndex === c.systemIndex);
+            cd.finalDecision = {
+                diagnosis: [d1, d2, d3],
+                useAntibiotic: useAb,
+                antibiotics: abs,
+                certainty: parseInt(cert.value)
+            };
+            cd.timestamps.finalSubmit = new Date().toISOString();
+
+            completedCases++;
+            updateProgress();
+
+            document.getElementById('aiSidebar').classList.remove('active');
+            document.getElementById('aiModalOverlay').classList.remove('active');
+
+            // 检查是否完成了一个系统的所有病历 (每3个案例)
+            if ((completedCases % 3 === 0) && completedCases < 9) {
+                // 显示系统评价量表
+                showSystemSurvey(Math.floor((completedCases - 1) / 3));
+            } else if (completedCases >= 9) {
+                // 完成最后一个系统,显示量表
+                showSystemSurvey(2);
+            } else {
+                // 继续下一个病历
+                alert(`案例已完成!请继续下一案例。`);
+                const nextIdx = curCase + 1;
+                document.getElementById(`nav-btn-${nextIdx}`).disabled = false;
+                switchCase(nextIdx);
+            }
+        }
+
+        // ========================================
+        // 系统评价量表
+        // ========================================
+        function showSystemSurvey(systemIdx) {
+            currentSystemIndex = systemIdx;
+            const systemName = experimentConfig.systems[systemIdx].systemName;
+            document.getElementById('surveySystemName').textContent = systemName;
+
+            // 重置所有量表选项
+            document.querySelectorAll('#systemSurveyOverlay input[type="radio"]').forEach(r => r.checked = false);
+
+            document.getElementById('systemSurveyOverlay').style.display = 'flex';
+        }
+
+        function submitSystemSurvey() {
+            // 验证所有量表项都已填写
+            const requiredFields = [
+                'intention1', 'intention2', 'intention3',
+                'usefulness1', 'usefulness2', 'usefulness3', 'usefulness4', 'usefulness5', 'usefulness6',
+                'easeOfUse1', 'easeOfUse2', 'easeOfUse3', 'easeOfUse4', 'easeOfUse5', 'easeOfUse6'
+            ];
+
+            for (const field of requiredFields) {
+                if (!document.querySelector(`input[name="${field}"]:checked`)) {
+                    alert('请完整填写所有评价项');
+                    return;
+                }
+            }
+
+            // 收集量表数据
+            const surveyData = {
+                intention: {
+                    q1: parseInt(document.querySelector('input[name="intention1"]:checked').value),
+                    q2: parseInt(document.querySelector('input[name="intention2"]:checked').value),
+                    q3: parseInt(document.querySelector('input[name="intention3"]:checked').value)
+                },
+                usefulness: {
+                    q1: parseInt(document.querySelector('input[name="usefulness1"]:checked').value),
+                    q2: parseInt(document.querySelector('input[name="usefulness2"]:checked').value),
+                    q3: parseInt(document.querySelector('input[name="usefulness3"]:checked').value),
+                    q4: parseInt(document.querySelector('input[name="usefulness4"]:checked').value),
+                    q5: parseInt(document.querySelector('input[name="usefulness5"]:checked').value),
+                    q6: parseInt(document.querySelector('input[name="usefulness6"]:checked').value)
+                },
+                easeOfUse: {
+                    q1: parseInt(document.querySelector('input[name="easeOfUse1"]:checked').value),
+                    q2: parseInt(document.querySelector('input[name="easeOfUse2"]:checked').value),
+                    q3: parseInt(document.querySelector('input[name="easeOfUse3"]:checked').value),
+                    q4: parseInt(document.querySelector('input[name="easeOfUse4"]:checked').value),
+                    q5: parseInt(document.querySelector('input[name="easeOfUse5"]:checked').value),
+                    q6: parseInt(document.querySelector('input[name="easeOfUse6"]:checked').value)
+                },
+                timestamp: new Date().toISOString()
+            };
+
+            // 保存到对应系统的数据中
+            expData.systems[currentSystemIndex].survey = surveyData;
+
+            // 关闭量表
+            document.getElementById('systemSurveyOverlay').style.display = 'none';
+
+            if (completedCases >= 9) {
+                // 所有实验完成
+                expData.endTime = new Date().toISOString();
+
+                const allResults = JSON.parse(localStorage.getItem('experimentResults') || '[]');
+                allResults.push(expData);
+                localStorage.setItem('experimentResults', JSON.stringify(allResults));
+
+                document.getElementById('completedParticipantId').textContent = expData.participantId;
+                document.getElementById('caseContentArea').classList.add('hidden');
+                document.getElementById('completionArea').classList.remove('hidden');
+
+                // 发送数据到邮箱
+                emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, {
+                    participant_id: expData.participantId,
+                    participant_name: expData.participantName,
+                    systems: expData.systems.map(s => `配置#${s.systemIndex}`).join(', '),
+                    design_info: JSON.stringify(expData.experimentDesign),
+                    full_data: JSON.stringify(expData, null, 2)
+                }).then(
+                    () => console.log('实验数据发送成功'),
+                    (error) => console.error('数据发送失败:', error)
+                );
+
+                setTimeout(() => {
+                    alert(`实验完成!感谢您的参与。\n\n您使用的系统配置:\n${expData.systems.map((s,i) => `系统${i+1}: 配置#${s.systemIndex}`).join('\n')}`);
+                }, 1000);
+            } else {
+                // 继续下一个系统的病历
+                alert(`感谢您的评价!请继续下一系统的病历。`);
+                const nextIdx = curCase + 1;
+                document.getElementById(`nav-btn-${nextIdx}`).disabled = false;
+                switchCase(nextIdx);
+            }
+        }
+
+        function closeAIModal() {
+            const overlay = document.getElementById('aiModalOverlay');
+            const modal = document.getElementById('aiModal');
+            overlay.classList.remove('active', 'minimized');
+            modal.classList.remove('minimized');
+        }
+
+        function toggleMinimizeModal() {
+            const overlay = document.getElementById('aiModalOverlay');
+            const modal = document.getElementById('aiModal');
+            const icon = document.getElementById('minimizeIcon');
+
+            if (modal.classList.contains('minimized')) {
+                modal.classList.remove('minimized');
+                overlay.classList.remove('minimized');
+                icon.textContent = '−';
+            } else {
+                modal.classList.add('minimized');
+                overlay.classList.add('minimized');
+                icon.textContent = '□';
+            }
+        }
+
+        async function submitPastedContentSidebar() {
+            const pastedText = document.getElementById('pasteTextareaSidebar').value.trim();
+
+            if (pastedText.length < 50) {
+                alert('请粘贴完整的病历内容(至少50个字符)');
+                return;
+            }
+
+            const c = allCases[curCase];
+            const cd = expData.cases.find(x => x.caseId === c.id && x.systemIndex === c.systemIndex);
+            cd.timestamps.pastedContent = new Date().toISOString();
+            cd.pastedContentLength = pastedText.length;
+
+            document.getElementById('pasteSectionSidebar').classList.add('hidden');
+            await getAISuggestion();
+        }
+
+        async function submitPastedContentModal() {
+            const pastedText = document.getElementById('pasteTextareaModal').value.trim();
+
+            if (pastedText.length < 50) {
+                alert('请粘贴完整的病历内容(至少50个字符)');
+                return;
+            }
+
+            const c = allCases[curCase];
+            const cd = expData.cases.find(x => x.caseId === c.id && x.systemIndex === c.systemIndex);
+            cd.timestamps.pastedContent = new Date().toISOString();
+            cd.pastedContentLength = pastedText.length;
+
+            await getAISuggestion();
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        window.onload = function() {
+            const savedId = localStorage.getItem('participantId');
+            const savedName = localStorage.getItem('participantName');
+
+            if (savedId && savedName) {
+                document.getElementById('participantInput').value = savedName;
+
+                if (confirm(`检测到您之前使用的ID是「${savedName}」\n\n是否继续使用?\n\n点击"确定"继续,点击"取消"重新输入。`)) {
+                    // 检查是否已有个人信息
+                    const demographics = localStorage.getItem('demographics');
+                    if (demographics) {
+                        startExperiment();
+                    } else {
+                        goToDemographics();
+                    }
+                } else {
+                    localStorage.removeItem('participantId');
+                    localStorage.removeItem('participantName');
+                    localStorage.removeItem('demographics');
+                }
+            }
+        };
+    </script>
+</body>
+</html>
